@@ -16,7 +16,7 @@ Hexa turns Bangalore into a hex-tiled board game. The city is split into ~85K H3
 
 - **Mobile stack:** Expo (CNG / managed workflow) + React Native + TypeScript strict. NOT Flutter. NOT React Native CLI bare.
 - **Backend:** Supabase Pro ($25/mo from day 1) with Postgres + PostGIS + h3-pg + Realtime + Edge Functions. NOT Firebase.
-- **Map:** MapLibre + MapTiler tiles. NOT Google Maps. NOT Mapbox.
+- **Map:** Mapbox SDK (`@rnmapbox/maps`) for the renderer + Mapbox tiles. NOT Google Maps. NOT MapLibre + MapTiler (originally specced but reversed in patch #19). Reasoning: free tier (25K MAU) covers us through PMF; the RN binding is more actively maintained; offline mode is mature.
 - **Hex grid:** Uber H3 resolution 10. Stored as `bigint` in Postgres, not string. h3-js on client, h3-pg on server.
 - **Auth:** Phone OTP only. NO Google/Apple/email sign-in. MSG91 wired in via Supabase's Custom SMS Provider config (see patch #6).
 - **Capture rules:** 20s dwell, GPS accuracy ≤25m, sustained speed ≤10 km/h, accelerometer ≥2 step events, point-in-polygon check. Server is source of truth, client gives instant feedback — conflicts: server wins.
@@ -52,7 +52,7 @@ Phase 1 starts only after every Phase 0 box above is checked.
 | Animation | react-native-reanimated | 4.3 |
 | Native worklets | react-native-worklets | 0.8 |
 | Backend | Supabase Pro | Postgres 15 + PostGIS + h3-pg |
-| Map renderer | MapLibre (to be added Phase 2) | — |
+| Map renderer | @rnmapbox/maps (to be added Phase 2) | — |
 | Hex math | h3-js (to be added Phase 2) | — |
 | State | Zustand (to be added Phase 1) | — |
 | Storage | react-native-mmkv (to be added Phase 1) | — |
@@ -196,6 +196,21 @@ Each patch overrides the corresponding section of the PDF. The PDF stays as the 
 
 18. **[NEW PATCH] CNG (Continuous Native Generation), not Bare workflow.** PDF Section 3.2 mandates Expo Bare. Modern Expo (SDK 50+) uses CNG: `/ios` and `/android` folders are git-ignored and regenerated on demand via `npx expo prebuild`. This is the default scaffold pattern and is better for our needs (config plugins handle most native customisation). Run `prebuild` only when (a) building a dev client, (b) building for store submission, or (c) adding a native module not covered by an Expo config plugin. Do NOT commit `/ios` and `/android` to git.
 
+19. **[NEW PATCH] Mapbox SDK instead of MapLibre + MapTiler.** Spec specified `@maplibre/maplibre-react-native` rendering MapTiler tiles. Reversed: use `@rnmapbox/maps` rendering Mapbox tiles. Reasoning:
+    - **Free tier covers us through PMF.** Mapbox: 25K mobile MAUs/month free. We're targeting 1K users by Month 5. Versus MapTiler's $29/month flat from day 1 (~₹15-20K saved over 6-month MVP).
+    - **The RN binding is dramatically better-maintained.** `@rnmapbox/maps` has full-time engineering behind it; MapLibre's RN bindings have had unmaintained stretches with open issues sitting for months. For a solo dev, debugging binding internals is not the use of time.
+    - **Built for custom-UI rendering.** Mapbox was designed for app-skinned maps, not navigation. For Hexa where the map IS the game UI, the customisation surface matters more than the cost difference at our scale.
+    - **Offline mode is mature.** Bangalore has GPS dead zones (basements, metro, dense apartment compounds). Mapbox's offline tile bundling is built for this.
+    - **Still cheaper than Google at scale.** At 70K monthly loads: Mapbox ~$100 vs Google $294+.
+
+    **Implementation notes for Phase 2 (do not write code yet — wait for Phase 2):**
+    - Install: `@rnmapbox/maps` (latest stable). Drop `@maplibre/maplibre-react-native` from any future dep list.
+    - Two tokens: `EXPO_PUBLIC_MAPBOX_PUBLIC_TOKEN` (`pk.*`, bundled into client, fine in `.env.local`) and `MAPBOX_SECRET_TOKEN` (`sk.*` with `DOWNLOADS:READ` scope, used at build time by the Expo plugin to fetch the native SDK from Mapbox's private npm registry — move to EAS secrets before any real build).
+    - The HexLayer code in Section 4 (`ShapeSource` / `FillLayer` / `LineLayer`) ports nearly 1:1 to `@rnmapbox/maps` — same component names, near-identical props.
+    - **Disable telemetry on app init**: `Mapbox.setTelemetryEnabled(false)`. Mapbox SDK collects anonymized location telemetry by default. With DPDPA 2023 in force and Hexa being a location-tracking app, telemetry off is the safe default. Document in Privacy Policy.
+    - **Billing alert from day one**: set a Mapbox usage alert at 20K MAU and a hard cap at 40K so a viral spike doesn't generate a surprise bill. Mapbox dashboard → Account → Usage → Notifications.
+    - Tokens need to be wired through the Expo config plugin before any iOS build, or compile fails. Read https://docs.mapbox.com/help/tutorials/use-mapbox-gl-js-with-react-native/ and the `@rnmapbox/maps` Expo install guide before starting Phase 2.
+
 ## Dependency Adjustments vs PDF Section 5.1
 
 Drop entirely (already absent from scaffold):
@@ -205,7 +220,7 @@ Drop entirely (already absent from scaffold):
 
 Add only when their phase arrives — do not pre-install:
 - Phase 1: `zustand`, `react-native-mmkv`, `@supabase/supabase-js`, `react-native-toast-message`
-- Phase 2: `@maplibre/maplibre-react-native`, `h3-js`, `@tanstack/react-query`
+- Phase 2: `@rnmapbox/maps`, `h3-js`, `@tanstack/react-query`
 - Phase 3: `expo-location`, `expo-task-manager`, `expo-sensors`
 - Phase 4: `expo-haptics`, `expo-notifications`, `expo-secure-store`
 - Phase 6: `date-fns`, `react-native-view-shot`, `expo-sharing`, `expo-image-manipulator`
