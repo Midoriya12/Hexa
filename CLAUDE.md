@@ -4,7 +4,7 @@
 
 ## Source of Truth
 
-- **Canonical spec:** `c:\Users\chara\Downloads\IDK\Hexa — Complete Build Document for Claude Code.pdf`
+- **Canonical spec:** [docs/hexa-build-spec.pdf](docs/hexa-build-spec.pdf) (in this repo)
 - **Where this file conflicts with the PDF, this file wins.** The "Spec Patches" section below is the authoritative override list.
 - **Expo:** Always read https://docs.expo.dev/versions/v56.0.0/ before writing native-touching code. Expo APIs change across SDKs; do not rely on training-data recall.
 
@@ -248,6 +248,6 @@ hexa/
 ## Notes for Future Claude Sessions
 
 - The scaffold's auto-generated `AGENTS.md` reminds you to read `https://docs.expo.dev/versions/v56.0.0/` before writing native-touching code. Honour it.
-- The source-of-truth PDF lives at `c:\Users\chara\Downloads\IDK\Hexa — Complete Build Document for Claude Code.pdf` — read the relevant phase section in full before starting work on it.
+- The source-of-truth PDF lives at [docs/hexa-build-spec.pdf](docs/hexa-build-spec.pdf) — read the relevant phase section in full before starting work on it.
 - Memory entries at `C:\Users\chara\.claude\projects\c--Users-chara-Downloads-IDK\memory\` track which phase we're in. Keep them current.
 - The user (Sai) is the sole founder + sole developer. They are sharp, opinionated, and have already corrected the spec 18 times before any code was written. Trust their decisions; ask before re-litigating.
