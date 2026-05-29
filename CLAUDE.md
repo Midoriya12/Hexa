@@ -271,6 +271,12 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 
 29. **[PATCHED] §6.5 GPS auto-detect + §6.6 OS permission calls stubbed in Phase 1.** Profile-setup Step 2 (§6.5) "Use my current location" needs `expo-location` (Phase 3), so Phase 1 ships the **manual pincode dropdown only** — no OR divider, no glass GPS button. Permissions screens (§6.6) ship explainer UI + navigation; the OS permission requests are **no-op stubs** until their libs land (`expo-location` Phase 3, `expo-notifications` Phase 4).
 
+30. **[PATCHED] VISUAL BLUEPRINT = INTVL screen layouts, recoloured to Hexa's saffron identity.** Decision (Sai, 2026-05-29, made with full context after the contradiction was laid out, then reconfirmed: _"follow the INTVL wireframes to build our app with our color schema"_). This **reverses** the earlier "INTVL is category-context only; do not copy its visuals/layouts/coral" rule, and **overrides the v3 design spec for visual LAYOUT/STRUCTURE**. Hexa screens now use INTVL's screen compositions (the 30 wireframes in `docs/reference/intvl-screen-reference.pdf`, rendered to `docs/_wf/intvl_p*.png`, gitignored) as the layout blueprint.
+    - **Recolour, don't recopy:** apply Hexa's tokens — saffron `#FF6F00`, dark `ink` palette, Inter, 12px radii (design spec §2) — NOT INTVL's coral `#FF5A5F`/light auth gradient.
+    - **Carve-outs that still hold (do NOT inherit from INTVL):** (a) phone-OTP auth ONLY — never INTVL's email/Google/Apple sign-in; (b) hex/walking theme, not running; (c) NO Entry Vault / sweepstakes / cash-prize mechanics (PROGA, patch #13); (d) Hexa nav = Map / Leaderboard / Friends / Profile (→ Feed in Phase 13), not INTVL's Play / Me / Feed / Start; (e) all locked decisions + patches #1–#29 remain in force.
+    - **Authority order (visuals only) becomes:** Patches > INTVL layout blueprint > v3 Design Spec visuals. The design spec's **tokens** (colour/type/spacing), the **build spec** (data/logic/schema), and **all patches** still govern. Where an INTVL layout can't be reconciled with a locked decision, the locked decision wins and the conflict is flagged.
+    - A per-screen INTVL→Hexa mapping is produced before rebuilding Phase 1 screens (phone-OTP has no direct INTVL equivalent, so its visual language is adapted from INTVL's auth/input/button styling).
+
 ---
 
 **[NEW IN v3 SPEC]** — patches below this line specifically correct the v3 design spec (delivered 2026-05-29). _None yet._

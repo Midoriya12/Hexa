@@ -44,5 +44,8 @@ yarn-error.*
 docs/*.txt
 docs/reference/*.txt
 
+# rendered wireframe images (derived from the PDFs; regenerate with pymupdf)
+docs/_wf/
+
 # EAS / Expo build artifacts
 dist/
