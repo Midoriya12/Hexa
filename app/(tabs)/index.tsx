@@ -1,20 +1,27 @@
-// Temporary Phase 0 dev home: a styled landing that links to the component
-// gallery so it's reachable on a device. Replaced by the Map (design spec §6.7)
-// in Phase 2.
+// Home (Map tab) — Phase 1 placeholder per build spec §1.5. The real map (§6.7)
+// lands in Phase 2. Keeps a dev link to the component gallery (removed in Phase 2).
+import { Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
 
-import { Button } from '@/components/ui';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-export default function Home() {
+export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useCurrentUser();
+
   return (
-    <View className="flex-1 items-center justify-center gap-4 bg-ink-50 px-6">
-      <Text className="text-display-sm text-ink-900">Hexa</Text>
-      <Text className="text-center text-body-md text-ink-700">
-        Phase 0 — design-system library. Screens start in Phase 1; the Map lands in Phase 2.
+    <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-ink-50 px-6">
+      <Text className="text-display-sm text-ink-900">
+        Welcome {user?.display_name ?? user?.username ?? 'walker'}
       </Text>
-      <Button label="Open component gallery" onPress={() => router.push('/_devtools/components')} />
-    </View>
+      <Text className="mt-3 text-body-md text-ink-700">Map coming soon</Text>
+      <Text
+        className="mt-8 text-body-sm text-saffron-600"
+        onPress={() => router.push('/_devtools/components')}
+      >
+        Open component gallery (dev)
+      </Text>
+    </SafeAreaView>
   );
 }
