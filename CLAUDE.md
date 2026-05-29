@@ -261,6 +261,16 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 
 24. **[PATCHED] `zone_ownership.pph_paused` column omitted (per patch #8).** Affected: Build Spec §4, `zone_ownership` table DDL. Patch #8 established that `pph_paused` becomes a zombie state (never un-sets once a user drops below the cap), and the soft cap is computed at PPH-calc time via `ORDER BY captured_at DESC LIMIT 50`. The column should never have been in the schema — do NOT include it when `zone_ownership` is created (that table lands in Phase 4, not Phase 1). The hourly PPH cron from patch #8 is the canonical implementation.
 
+25. **[PATCHED] `public_users` view security model (hardens patch #5).** Adversarial review of the Phase 1 migration found the first draft granted the view to `anon` and ran it `security_invoker = off` — which would let UNAUTHENTICATED clients scrape every user's username/points/avatar, re-opening the exact leak patch #5 closed. Locked model: (a) `public_users` runs security-definer (invoker off) so it bypasses base-table RLS, with its **8-column list as the privacy boundary** (id, username, display_name, avatar_url, level, hex_colour, current_round_points, ghost_mode — `ghost_mode` retained per patch #5 so leaderboard/feed queries can filter `WHERE ghost_mode = FALSE` at query time); (b) `GRANT SELECT ON public_users TO authenticated` ONLY — never `anon`; (c) base `users` table SELECT is NOT granted to `authenticated`, so the view is the SOLE cross-user read path; (d) all owner policies scoped `TO authenticated`; (e) `set_updated_at()` pinned `SET search_path = ''` (Supabase linter: function_search_path_mutable). A `users_insert_own` policy (`WITH CHECK (auth.uid() = id)`) is added so client-side profile-setup INSERT passes RLS (build spec omitted it). `users.id` is `REFERENCES auth.users(id) ON DELETE CASCADE` so `auth.uid() = users.id`.
+
+26. **[PATCHED] Phase 1 scope: onboarding (§6.4) + notifications explainer (§6.6) built in Phase 1.** Decision (Sai, 2026-05-29) following the design spec's auth-stack ordering (§4.1), overriding the build spec which schedules these under Phase 9 (§9.1 onboarding, §9.4 notifications). Onboarding ships the 3-screen carousel with **static placeholder visuals** (Lottie deferred — no `lottie-react-native` yet). The notifications screen ships the **explainer UI + navigation only**; the actual OS push-permission REQUEST stays deferred to post-first-capture (Phase 4+) per build spec §9.4's grant-rate rationale — Phase 1's OS call is a no-op stub. `display_name` is collected as a **separate input** in profile-setup Step 1 (Sai's choice over defaulting to username).
+
+27. **[PATCHED] `postgis` + `h3` extensions deferred from 001_init to the Phase 3 migration.** Build spec §1.1 mandates enabling postgis/h3/uuid-ossp in the first migration, but (a) the `users` table only needs `uuid-ossp`, and (b) `h3` is not reliably available on Supabase without dashboard enablement — coupling it to the auth-critical migration risks aborting the whole transaction and blocking signup. `001_init.sql` enables ONLY `uuid-ossp`; `postgis` + `h3` move to the Phase 3 hex-generation migration (the first thing that uses them). Verify `h3` availability via the dashboard/CLI before Phase 3.
+
+28. **[PATCHED] `react-native-toast-message` dropped.** The in-house §3.7 `Toast` (`BottomToast`/`TopBanner`, built Phase 0) is the canonical toast and is what the screen specs reference. Remove `react-native-toast-message` from the Phase 1 dep list; add a small in-house toast host/provider instead. (Supersedes the Dependency Adjustments entry below.)
+
+29. **[PATCHED] §6.5 GPS auto-detect + §6.6 OS permission calls stubbed in Phase 1.** Profile-setup Step 2 (§6.5) "Use my current location" needs `expo-location` (Phase 3), so Phase 1 ships the **manual pincode dropdown only** — no OR divider, no glass GPS button. Permissions screens (§6.6) ship explainer UI + navigation; the OS permission requests are **no-op stubs** until their libs land (`expo-location` Phase 3, `expo-notifications` Phase 4).
+
 ---
 
 **[NEW IN v3 SPEC]** — patches below this line specifically correct the v3 design spec (delivered 2026-05-29). _None yet._
@@ -273,13 +283,12 @@ Drop entirely (already absent from scaffold):
 - `@xstate/react` — for the capture FSM, prefer a plain TypeScript discriminated union + switch. One fewer dep to maintain.
 
 Add only when their phase arrives — do not pre-install, and **ask before installing**:
-- **Phase 0 (component library):** `nativewind` + `tailwindcss`, `react-native-gesture-handler`, `@gorhom/bottom-sheet`, `expo-haptics`. _(Note: the v3 design spec's component library is built in Phase 0, which pulls `expo-haptics` — Button §3.1 — and `@gorhom/bottom-sheet` — §3.6 — forward from their old Phase 4 slot. `react-native-reanimated` is already installed.)_
-- Phase 1: `zustand`, `react-native-mmkv`, `@supabase/supabase-js`, `react-native-toast-message`
+- **Phase 0 (component library) — DONE:** `nativewind` + `tailwindcss`, `react-native-gesture-handler`, `@gorhom/bottom-sheet`, `expo-haptics`, `expo-dev-client`. _(The component library is built in Phase 0, which pulled `expo-haptics` — Button §3.1 — and `@gorhom/bottom-sheet` — §3.6 — forward from their old Phase 4 slot. `react-native-reanimated` was already installed.)_
+- **Phase 1:** `@supabase/supabase-js`, `zustand`, `react-native-mmkv`, `@sentry/react-native` (acceptance criterion "all errors logged to Sentry" — approved Sai 2026-05-29; needs the Expo config plugin → one dev-client rebuild, batch with mmkv), and icons via `react-native-svg` + `@tabler/icons-react-native` (NOTE: the hex Map-tab icon is custom per §2.6 — hand-rolled SVG, not in the Tabler set). **`react-native-toast-message` is NOT used** — patch #28 (use the in-house §3.7 Toast).
 - Phase 2: `@rnmapbox/maps`, `h3-js`, `@tanstack/react-query`
-- Phase 3: `expo-location`, `expo-task-manager`, `expo-sensors`
+- Phase 3: `expo-location`, `expo-task-manager`, `expo-sensors`, and the `postgis` + `h3` Postgres extensions (deferred from 001_init — patch #27)
 - Phase 4: `expo-notifications`, `expo-secure-store`
 - Phase 6: `date-fns`, `react-native-view-shot`, `expo-sharing`, `expo-image-manipulator`
-- Phase 1 (icons): Tabler Icons (per design spec §2.6)
 
 Versions: always pin to whatever https://docs.expo.dev/versions/v56.0.0/ recommends for the installed SDK.
 
