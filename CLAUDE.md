@@ -85,7 +85,7 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 **Phase 0 — Pre-Build Setup + Foundational UI.** Setup essentially closed; building the design-system component library (tokens → tailwind → scaffold → 13 UI components → demo screen). Status as of 2026-05-29:
 
 - [x] Repo scaffolded and pushed (Expo SDK 56, TypeScript strict)
-- [x] CLAUDE.md restructured; all 21 spec patches preserved
+- [x] CLAUDE.md restructured; all spec patches preserved (21 at restructure; 24 now with #22–24)
 - [x] `.env.local` populated — 8/10 keys (MSG91 pair deferred, patch #20)
 - [x] Supabase confirmed LIVE — `/auth/v1/health` → 200 (GoTrue v2.189.0), anon key valid
 - [x] Dev platform: **Android-first** (Windows, no Mac — patch #21)
@@ -98,7 +98,9 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 
 **This list is append-only.** Each patch overrides the design spec / build spec where they conflict. **Authority order: Patches > v3 Design Spec > Build Spec > INTVL Reference > training data.** Never renumber — patch #N keeps its number forever so cross-references stay valid. Status tags: **[PATCHED]** (active override), **[OPEN]** (unresolved), **[ABSORBED INTO v3 SPEC §X.Y]** (fix is now canonical in the spec; kept as historical record, not an active override).
 
-**Absorption audit (2026-05-29, vs v3 _design_ spec):** All 21 patches target the build spec, game logic, data schema, anti-cheat, or build/process decisions — domains the v3 _design_ spec (visual + interaction only) does not cover. **None are absorbed by the v3 design spec.** Two patches in fact override stale content still in v3: **#19** (design spec §5.2 / §6.7 still say "MapLibre/Mapbox" + "MapTiler" — we use Mapbox) and **#11** (design spec §3.13 still shows "Clans" as the Level-3 unlock — MVP L3 unlock is Friends + custom hex colour until clans ship in Phase 11). Re-run this audit against the v3 **build** spec when it's shared (before Phase 1) — that's the document most patches target, and it likely absorbs several.
+**Canonical build spec confirmed (Sai, 2026-05-29):** `docs/hexa-build-spec.pdf` is THE build spec — no separate `HEXA_BUILD_SPEC.md` is coming (the Phase 0 brief's mention of one was a slip; generating a fresh copy would invalidate all patch section-references). The patches in this file are the override layer on top of that PDF.
+
+**Absorption audit (2026-05-29, vs v3 _design_ spec):** All patches target the build spec, game logic, data schema, anti-cheat, or build/process decisions — domains the v3 _design_ spec (visual + interaction only) does not cover. **None are absorbed by the v3 design spec.** Two patches in fact override stale content still in v3: **#19** (design spec §5.2 / §6.7 still say "MapLibre/Mapbox" + "MapTiler" — we use Mapbox) and **#11** (design spec §3.13 still shows "Clans" as the Level-3 unlock — MVP L3 unlock is Friends + custom hex colour until clans ship in Phase 11). Patches #23/#24 are corrections to the build spec PDF's §4 DDL itself.
 
 1. **[PATCHED] Hex count.** Bangalore bbox at H3 res 10 yields ~86,500 hexes — NOT 520K. The PDF math (Section 10 and Appendix B) is off by ~6x. Update generation script timing from "~30 min" to "~5-8 min." DB sizing, viewport-query LIMITs, and seed-script progress logs should all assume ~85-100K, not 520K.
 
@@ -255,6 +257,10 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 
 22. **[PATCHED] Expo Go is unusable — development build required from Phase 0.** Expo Go is pinned to the latest _released_ SDK; our SDK 56 is ahead of it, so Expo Go rejects the project outright ("requires a newer version of Expo Go") — independent of native modules. This refines patch #21: a **dev build is needed from Phase 0**, not Phase 1. Android-first path (Sai's AVD/emulator is broken; physical Android phones are the test target — 2026-05-29): EAS cloud build (`eas build -p android --profile development`; `expo-dev-client` + `eas.json` added) → install the APK on a phone → `npx expo start --dev-client`; or `npx expo run:android` to a USB-connected device when the local Android toolchain is available. Web (`expo start --web`) renders most components for a quick visual pass but is low-fidelity (no real bottom-sheet/haptics, approximate animations) and is not a shipping target.
 
+23. **[OPEN] Build spec `language_pref` CHECK missing closing paren.** Affected: Build Spec §4, `users` table DDL (PDF line ~515). The constraint as printed omits the closing paren after the `IN (...)` list. It should read `language_pref TEXT DEFAULT 'en' CHECK (language_pref IN ('en','hi','kn','ta','te'))` — closing paren after the `IN (...)` list, then the column terminator. Apply in `001_init.sql` as corrected here, NOT as printed in the PDF. _(Status kept [OPEN] per Sai to flag the live defect in the canonical PDF; the resolution is concrete and is applied verbatim in the migration.)_
+
+24. **[PATCHED] `zone_ownership.pph_paused` column omitted (per patch #8).** Affected: Build Spec §4, `zone_ownership` table DDL. Patch #8 established that `pph_paused` becomes a zombie state (never un-sets once a user drops below the cap), and the soft cap is computed at PPH-calc time via `ORDER BY captured_at DESC LIMIT 50`. The column should never have been in the schema — do NOT include it when `zone_ownership` is created (that table lands in Phase 4, not Phase 1). The hourly PPH cron from patch #8 is the canonical implementation.
+
 ---
 
 **[NEW IN v3 SPEC]** — patches below this line specifically correct the v3 design spec (delivered 2026-05-29). _None yet._
@@ -310,4 +316,4 @@ hexa/
 - `AGENTS.md` reminds you to read `https://docs.expo.dev/versions/v56.0.0/` before writing native-touching code. Honour it.
 - Read the relevant phase section of the v3 design spec (UI) and build spec (logic) in full before starting that phase.
 - Memory entries at `C:\Users\chara\.claude\projects\c--Users-chara-Downloads-IDK\memory\` track the current phase. Keep them current.
-- The user (Sai) is the sole founder + sole developer — sharp, opinionated, and has corrected the spec 21 times before real code was written. Trust the decisions; ask before re-litigating. They will push back hard on drift, unrequested features, INTVL copying, or phase-skipping — the spec exists to prevent drift over a 10-week MVP.
+- The user (Sai) is the sole founder + sole developer — sharp, opinionated, and has corrected the spec 24 times (and counting) — many before a line of real code. Trust the decisions; ask before re-litigating. They will push back hard on drift, unrequested features, INTVL copying, or phase-skipping — the spec exists to prevent drift over a 10-week MVP.
