@@ -1,31 +1,20 @@
-import { StyleSheet } from 'react-native';
+// Temporary Phase 0 dev home: a styled landing that links to the component
+// gallery so it's reachable on a device. Replaced by the Map (design spec §6.7)
+// in Phase 2.
+import { useRouter } from 'expo-router';
+import { Text, View } from 'react-native';
 
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
+import { Button } from '@/components/ui';
 
-export default function TabOneScreen() {
+export default function Home() {
+  const router = useRouter();
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tab One</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/index.tsx" />
+    <View className="flex-1 items-center justify-center gap-4 bg-ink-50 px-6">
+      <Text className="text-display-sm text-ink-900">Hexa</Text>
+      <Text className="text-center text-body-md text-ink-700">
+        Phase 0 — design-system library. Screens start in Phase 1; the Map lands in Phase 2.
+      </Text>
+      <Button label="Open component gallery" onPress={() => router.push('/_devtools/components')} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
-  },
-});
