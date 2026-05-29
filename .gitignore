@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# derived spec extractions (pdftotext output; PDFs are the source of truth)
+docs/*.txt
+docs/reference/*.txt
+
+# EAS / Expo build artifacts
+dist/
