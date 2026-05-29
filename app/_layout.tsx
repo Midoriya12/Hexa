@@ -10,11 +10,16 @@ import '../global.css';
 import { supabase } from '@/lib/supabase/client';
 import { fetchOwnUser, getSession, isProfileComplete } from '@/lib/supabase/auth';
 import { useUserStore } from '@/stores/userStore';
+import { initSentry, Sentry } from '@/lib/sentry';
 
 export {
-  // Catch errors thrown in the navigation tree (routed to Sentry in the observability task).
+  // expo-router renders this on a navigation-tree error; Sentry's global handler
+  // captures the underlying exception.
   ErrorBoundary,
 } from 'expo-router';
+
+// Install the global error/crash handler as early as possible.
+initSentry();
 
 // Keep the splash up until session bootstrap + fonts are ready.
 SplashScreen.preventAutoHideAsync();
@@ -40,9 +45,10 @@ function useSessionBootstrap() {
           const row = await fetchOwnUser(current.user.id);
           if (mounted) setUser(row);
         }
-      } catch {
-        // Boot must not hang on a transient auth/network error; Sentry capture is
-        // added in the observability task. Fall through to ready with no session.
+      } catch (err) {
+        // Boot must not hang on a transient auth/network error; report and fall
+        // through to ready with no session.
+        Sentry.captureException(err);
       } finally {
         if (mounted) setReady(true);
       }
@@ -54,8 +60,8 @@ function useSessionBootstrap() {
       if (next) {
         try {
           setUser(await fetchOwnUser(next.user.id));
-        } catch {
-          /* profile fetch retried on next navigation */
+        } catch (err) {
+          Sentry.captureException(err); // profile fetch retried on next navigation
         }
       } else {
         setUser(null);
@@ -98,7 +104,7 @@ function useAuthGuard(session: Session | null, ready: boolean) {
   }, [ready, session, user, segments, router]);
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -123,3 +129,6 @@ export default function RootLayout() {
     </Stack>
   );
 }
+
+// Sentry.wrap adds routing + error-boundary instrumentation around the root.
+export default Sentry.wrap(RootLayout);
