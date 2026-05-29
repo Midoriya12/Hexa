@@ -1,66 +1,104 @@
 # Hexa — Build Project Guide
 
-> **Read order:** this file → the relevant phase section of the spec PDF → the code.
+> **Read order:** this file (patches + decisions) → the **v3 Design Spec** (visual + interaction) → the **Build Spec** (data + logic) → the code.
+> **Always read** https://docs.expo.dev/versions/v56.0.0/ before writing native-touching code. Expo APIs change across SDKs; do not rely on training-data recall.
 
 ## Source of Truth
 
-- **Canonical spec:** [docs/hexa-build-spec.pdf](docs/hexa-build-spec.pdf) (in this repo)
-- **Where this file conflicts with the PDF, this file wins.** The "Spec Patches" section below is the authoritative override list.
-- **Expo:** Always read https://docs.expo.dev/versions/v56.0.0/ before writing native-touching code. Expo APIs change across SDKs; do not rely on training-data recall.
+- **v3 Design Spec** — [docs/hexa-design-spec-v3.pdf](docs/hexa-design-spec-v3.pdf) (v3, delivered 2026-05-29). Visual + interaction spec: design system, components, motion, 28 screen specs across 13 phases. Canonical for all UI decisions. Exact values (colours, spacing, font sizes, durations) are used verbatim — never "improved" or substituted.
+- **Build Spec** — [docs/hexa-build-spec.pdf](docs/hexa-build-spec.pdf) + `HEXA_BUILD_SPEC.md` (shared before Phase 1). Data, logic, schema, edge functions, anti-cheat.
+- **INTVL Reference** — [docs/reference/intvl-screen-reference.pdf](docs/reference/intvl-screen-reference.pdf). Category context ONLY (how a peer walking-territory app shapes clans/feeds/runs). Never copy its visuals, copy, layouts, or coral colour scheme. If an INTVL pattern conflicts with our design spec, the design spec wins — always.
+- **Spec Patches** (below) are the authoritative override list and win over every document.
 
-## Project Summary (one paragraph)
+## Project Summary
 
-Hexa turns Bangalore into a hex-tiled board game. The city is split into ~85K H3 res-10 hexes (~150m across). Walk into a hex, dwell 20 seconds under GPS + speed + accelerometer checks, and capture it. Hold hexes for passive points (PPH); others can steal them. Compete on neighbourhood leaderboards, earn medals, climb levels with Safe-Point retention rules, eventually join clans and redeem points for closed-loop brand vouchers. Hyperlocal first (HSR / Koramangala / Indiranagar), Bangalore-only for the first 6 months.
+Hexa turns Bangalore into a hex-tiled board game. The city is split into ~85K H3 res-10 hexes (~130m across); walk into a hex, dwell 20 seconds under GPS + speed + accelerometer checks, and capture it. Hold hexes for passive points per hour (PPH); friends and strangers steal them. Compete on per-pincode leaderboards across monthly seasons, build streaks, earn medals, climb levels with Safe-Point retention, eventually join clans and redeem points for closed-loop brand vouchers. Hyperlocal first (HSR / Koramangala / Indiranagar), Bangalore-only for the first 6 months.
 
-## Decisions Already Made (Do Not Relitigate)
+## Stack (locked)
 
-- **Mobile stack:** Expo (CNG / managed workflow) + React Native + TypeScript strict. NOT Flutter. NOT React Native CLI bare.
-- **Backend:** Supabase Pro ($25/mo from day 1) with Postgres + PostGIS + h3-pg + Realtime + Edge Functions. NOT Firebase.
-- **Map:** Mapbox SDK (`@rnmapbox/maps`) for the renderer + Mapbox tiles. NOT Google Maps. NOT MapLibre + MapTiler (originally specced but reversed in patch #19). Reasoning: free tier (25K MAU) covers us through PMF; the RN binding is more actively maintained; offline mode is mature.
-- **Hex grid:** Uber H3 resolution 10. Stored as `bigint` in Postgres, not string. h3-js on client, h3-pg on server.
-- **Auth:** Phone OTP only. NO Google/Apple/email sign-in. MSG91 wired in via Supabase's Custom SMS Provider config (see patch #6).
-- **Capture rules:** 20s dwell, GPS accuracy ≤25m, sustained speed ≤10 km/h, accelerometer ≥2 step events, point-in-polygon check. Server is source of truth, client gives instant feedback — conflicts: server wins.
-- **Launch geography:** Bangalore only for first 6 months. Within Bangalore: HSR + Koramangala + Indiranagar.
-- **Locale:** IST (Asia/Kolkata) everywhere. INR currency. Never USD in user-facing strings.
-- **No crypto, no tokens, no NFTs, no user buy-in, no P2P trading, no point-to-fiat conversion.** Brand-funded closed-loop vouchers only (PROGA 2025 compliance — see patch #13).
-- **Battery is sacred.** Background GPS is the #1 reason walking apps get uninstalled. Design every phase with battery in mind.
-- **Loss-aversion notifications** ("you lost X") over gain-motivation ("earn Y").
-- **Phase gating is non-negotiable.** Do NOT skip ahead. Do NOT add features outside the current phase. Each phase has an acceptance checklist; do not proceed until every item passes.
+- **Mobile:** Expo + React Native + TypeScript strict, **CNG / managed workflow** (NOT Bare — see patch #18; NOT Flutter; NOT RN CLI).
+- **Styling:** NativeWind (Tailwind for React Native). Tokens in `theme/tokens.ts` are the single source of truth.
+- **Backend:** Supabase Pro (Postgres + PostGIS + h3-pg + Realtime + Edge Functions). NOT Firebase.
+- **Map:** Mapbox via `@rnmapbox/maps` + Mapbox tiles (NOT Google Maps; NOT MapLibre + MapTiler — patch #19).
+- **Hex grid:** Uber H3 resolution 10, stored as `bigint` in Postgres (not string). h3-js on client, h3-pg on server.
+- **Auth:** Phone OTP only (no Google/Apple/email). MSG91 via Supabase Custom SMS Provider (patch #6); MSG91 setup deferred to pre-production, dev uses test OTP (patch #20).
+- **State / data / storage:** Zustand + TanStack Query + MMKV.
+- **Animation / gesture:** react-native-reanimated + react-native-gesture-handler.
+- **Location:** expo-location + expo-task-manager (foreground + background GPS through Phase 9; reassess transistorsoft only if battery profiling fails — patch #10).
+- **Platforms:** iOS 16+ and Android 9+ from day 1. Dev is **Android-first** (patch #21).
 
-## Current Phase
-
-**Phase 0 — Pre-Build Setup.** Scaffold complete on this machine. Still pending:
-
-- [ ] Accounts: Supabase, MapTiler, MSG91, Apple Developer, Google Play, Sentry, PostHog, OpenWeather
-- [ ] Apple Developer enrollment (start NOW — 1-21 days depending on entity type)
-- [ ] Figma wireframes (8 screens, rough is fine)
-- [ ] `.env.local` populated with real keys
-- [x] Repo scaffolded and pushed
-- [x] CLAUDE.md written
-
-Phase 1 starts only after every Phase 0 box above is checked.
-
-## Stack (as installed, SDK 56)
+**As installed (SDK 56):**
 
 | Layer | Tool | Version |
 |---|---|---|
 | Mobile framework | Expo | ~56.0 |
-| Language | TypeScript | ~6.0 (strict mode on) |
+| Language | TypeScript | ~6.0 (strict) |
 | Runtime | React Native | 0.85.3 |
-| UI library | React | 19.2.3 |
+| UI | React | 19.2.3 |
 | Routing | expo-router | ~56.2 |
 | Animation | react-native-reanimated | 4.3 |
 | Native worklets | react-native-worklets | 0.8 |
-| Backend | Supabase Pro | Postgres 15 + PostGIS + h3-pg |
-| Map renderer | @rnmapbox/maps (to be added Phase 2) | — |
-| Hex math | h3-js (to be added Phase 2) | — |
-| State | Zustand (to be added Phase 1) | — |
-| Storage | react-native-mmkv (to be added Phase 1) | — |
-| Server fetch | @tanstack/react-query (to be added Phase 2) | — |
+| Safe area | react-native-safe-area-context | ~5.7 |
 
-## Spec Patches (override the PDF where they conflict)
+Everything else (NativeWind, gesture-handler, @gorhom/bottom-sheet, expo-haptics, Zustand, MMKV, Supabase, Mapbox, h3-js, …) is **not yet installed** — added phase-by-phase, with explicit approval (see Dependency Adjustments).
 
-Each patch overrides the corresponding section of the PDF. The PDF stays as the canonical narrative spec; this list is the diff.
+## Design Principles (v3 Design Spec §1)
+
+1. **The map is the product.** The home screen is a map first, a UI second. Every element must justify covering even 1px of map; when in doubt, hide it behind a tap.
+2. **Loss aversion drives the loop.** Every screen makes it easy to see what you might lose (streak, rank, hexes) and fix it in one tap. Notifications read "Rohit stole 3 of your hexes," never "+30 points available."
+3. **Dark by default. Saffron for moments that matter.** Near-black base, high-contrast text. Saffron `#FF6F00` is reserved for owned hexes, primary CTAs, your name on leaderboards, capture celebrations, and the active streak. Saffron everywhere kills the impact of saffron anywhere.
+
+## Decisions Already Made (Do Not Relitigate)
+
+- **App name:** Hexa.
+- **Colour scheme:** saffron `#FF6F00` primary, dark mode default (light mode is post-MVP). Do NOT propose alternatives.
+- **Platforms:** iOS 16+ and Android 9+ from day 1.
+- **Launch geography:** Bangalore only for the first 6 months. Within Bangalore: HSR + Koramangala + Indiranagar first.
+- **Hex grid:** Uber H3 resolution 10, ~85K hexes for the launch area, stored as `bigint`.
+- **Capture mechanics:** 20s dwell · GPS accuracy ≤25m · sustained speed ≤10 km/h · ≥2 accelerometer step events · point-in-polygon check · 30-min Fresh Paint immunity · 23h revisit window · 15-min block cooldown. Server is source of truth; client gives instant feedback; conflicts → server wins.
+- **No crypto, no tokens, no NFTs, no user buy-in, no P2P trading, no point-to-fiat conversion, no sweepstakes** (we explicitly skip the Entry Vault mechanic INTVL has). Brand-funded closed-loop vouchers only — PROGA 2025 compliance (patch #13). If asked to write code that violates this, STOP and flag it; do not write it.
+- **Locale:** IST (Asia/Kolkata) everywhere. INR currency. Never USD in user-facing strings.
+- **Battery is sacred.** Background GPS is the #1 reason walking apps get uninstalled — design every phase around it.
+- **Loss-aversion notifications** over gain-motivation.
+- **Phase gating is non-negotiable.** Do NOT skip ahead. Do NOT add features outside the current phase. Each phase has an acceptance checklist; do not proceed until every box passes.
+
+## Authority Order
+
+**Spec Patches > v3 Design Spec > Build Spec > INTVL Reference > training data.**
+
+If the design spec doesn't cover something needed, ASK — do not guess and do not extrapolate from INTVL. If a contradiction is found between specs (or between a spec and what's technically sound), flag it before writing code; patch the spec rather than building around it.
+
+## Conventions
+
+- **TypeScript strict mode.** `tsc --noEmit` must pass before any commit. No `any` types.
+- **No `console.log` in committed code.** Proper Sentry/PostHog wrappers land in Phase 1.
+- **No emojis in code or commit messages.** Emojis are for user-facing UI only (notifications, badges).
+- **Styling:** NativeWind classes for layout/colour. `StyleSheet` only where Tailwind doesn't fit (animations, dynamic values). No inline style objects for static layout/colour.
+- **Conventional Commits.** `feat(scope):`, `fix(scope):`, `chore:`, `docs:`, `refactor(scope):`, `test(scope):`. Scopes: `ui`, `capture`, `map`, `auth`, `db`, `ci`, … Commit small — at least one commit per logical sub-task (one UI component per commit in Phase 0).
+- **Ask before:** adding any dependency, changing the DB schema, changing capture-FSM states, any structural change, or anything ambiguous in the specs.
+- **Times are IST** (`Asia/Kolkata` in SQL, `date-fns-tz` on the client — never store IST as a naive timestamp). **Currency is INR** (`Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })`).
+- **Comment WHY, not WHAT.** Code shows what; comments explain the game-design or constraint reason.
+- **End of each phase:** run the acceptance checklist explicitly in chat. If any box fails, stop and fix before proceeding.
+
+## Current Phase
+
+**Phase 0 — Pre-Build Setup + Foundational UI.** Setup essentially closed; building the design-system component library (tokens → tailwind → scaffold → 13 UI components → demo screen). Status as of 2026-05-29:
+
+- [x] Repo scaffolded and pushed (Expo SDK 56, TypeScript strict)
+- [x] CLAUDE.md restructured; all 21 spec patches preserved
+- [x] `.env.local` populated — 8/10 keys (MSG91 pair deferred, patch #20)
+- [x] Supabase confirmed LIVE — `/auth/v1/health` → 200 (GoTrue v2.189.0), anon key valid
+- [x] Dev platform: **Android-first** (Windows, no Mac — patch #21)
+- [x] **v3 Design Spec delivered** (2026-05-29) — serves as the canonical visual spec; satisfies the old "Figma wireframes" Phase-0 item (Figma optional/later)
+- [~] **Apple Developer Program — APPLIED 2026-05-29, enrollment in progress** (lifts the patch #21 deferral; once active, dev builds can side-load to Sai's iPhone via EAS). Android-first still holds until it activates.
+- [ ] Google Play Console — defer until first Android internal/beta release (Phase 9)
+- [ ] Phase 0 component library — IN PROGRESS
+
+## Spec Patches
+
+**This list is append-only.** Each patch overrides the design spec / build spec where they conflict. **Authority order: Patches > v3 Design Spec > Build Spec > INTVL Reference > training data.** Never renumber — patch #N keeps its number forever so cross-references stay valid. Status tags: **[PATCHED]** (active override), **[OPEN]** (unresolved), **[ABSORBED INTO v3 SPEC §X.Y]** (fix is now canonical in the spec; kept as historical record, not an active override).
+
+**Absorption audit (2026-05-29, vs v3 _design_ spec):** All 21 patches target the build spec, game logic, data schema, anti-cheat, or build/process decisions — domains the v3 _design_ spec (visual + interaction only) does not cover. **None are absorbed by the v3 design spec.** Two patches in fact override stale content still in v3: **#19** (design spec §5.2 / §6.7 still say "MapLibre/Mapbox" + "MapTiler" — we use Mapbox) and **#11** (design spec §3.13 still shows "Clans" as the Level-3 unlock — MVP L3 unlock is Friends + custom hex colour until clans ship in Phase 11). Re-run this audit against the v3 **build** spec when it's shared (before Phase 1) — that's the document most patches target, and it likely absorbs several.
 
 1. **[PATCHED] Hex count.** Bangalore bbox at H3 res 10 yields ~86,500 hexes — NOT 520K. The PDF math (Section 10 and Appendix B) is off by ~6x. Update generation script timing from "~30 min" to "~5-8 min." DB sizing, viewport-query LIMITs, and seed-script progress logs should all assume ~85-100K, not 520K.
 
@@ -96,7 +134,7 @@ Each patch overrides the corresponding section of the PDF. The PDF stays as the 
 
 10. **[PATCHED] Background geolocation library.** Sections 3.2, 5.1, and 9.2 give three different stances on when to switch from `expo-location` to transistorsoft's `react-native-background-geolocation`. Single rule: **stay on `expo-location` + `expo-task-manager` through Phase 9**. Only consider switching in Phase 9.2 IF battery profiling shows > 8% / hour during active walks. Most apps never need to switch.
 
-11. **[PATCHED] Level 3 unlocks.** Section 2.6 table says L3 unlocks "Clans, custom username colour." But clans don't ship until Phase 11 (Month 4). Anyone hitting L3 in Phase 7–10 sees a phantom feature. MVP unlocks for L3: **"Friends + custom hex colour."** Clan unlock activates at L3+ retroactively when Phase 11 ships.
+11. **[PATCHED] Level 3 unlocks.** Section 2.6 table says L3 unlocks "Clans, custom username colour." But clans don't ship until Phase 11 (Month 4). Anyone hitting L3 in Phase 7–10 sees a phantom feature. MVP unlocks for L3: **"Friends + custom hex colour."** Clan unlock activates at L3+ retroactively when Phase 11 ships. (Note: v3 design spec §3.13 still uses "Reach Level 3 to unlock Clans" as its FeatureGate example — this patch overrides that copy for MVP.)
 
 12. **[PATCHED] Path auto-paint schema.** Section 10 (Phase 10) says owning a path auto-paints all underlying hexes in your colour. The current `zone_ownership` schema has no way to express "visual override without hex-ownership transfer." Locked design: **path takes visual priority on the map, but the underlying hex owner keeps PPH.** Implementation deferred to Phase 10 — likely needs either a `hex_path_overlay` table or a client-side compute via `path_ownership ⋈ paths.checkpoints ⋈ hexes` at viewport load. Decide at Phase 10 design time; do NOT mutate `zone_ownership.user_id` for path captures.
 
@@ -192,11 +230,11 @@ Each patch overrides the corresponding section of the PDF. The PDF stays as the 
 
     Semantics: freeze covers exactly one skipped day. 2+ skipped days = reset, regardless of freezes held. Note `execute_capture` should still set `last_capture_at = now()` AFTER calling this function, not before — otherwise the "days missed" calculation reads its own write.
 
-17. **[NEW PATCH] Expo SDK version.** PDF specifies SDK 51; scaffold installed SDK 56 (latest stable as of 2026-05-25). All version pins in Section 5.1's `package.json` are stale — read the current `package.json` instead. When adding new Expo libraries, query https://docs.expo.dev/versions/v56.0.0/ for the correct version specifier.
+17. **[PATCHED] Expo SDK version.** PDF specifies SDK 51; scaffold installed SDK 56 (latest stable as of 2026-05-25). All version pins in Section 5.1's `package.json` are stale — read the current `package.json` instead. When adding new Expo libraries, query https://docs.expo.dev/versions/v56.0.0/ for the correct version specifier.
 
-18. **[NEW PATCH] CNG (Continuous Native Generation), not Bare workflow.** PDF Section 3.2 mandates Expo Bare. Modern Expo (SDK 50+) uses CNG: `/ios` and `/android` folders are git-ignored and regenerated on demand via `npx expo prebuild`. This is the default scaffold pattern and is better for our needs (config plugins handle most native customisation). Run `prebuild` only when (a) building a dev client, (b) building for store submission, or (c) adding a native module not covered by an Expo config plugin. Do NOT commit `/ios` and `/android` to git.
+18. **[PATCHED] CNG (Continuous Native Generation), not Bare workflow.** PDF Section 3.2 mandates Expo Bare. Modern Expo (SDK 50+) uses CNG: `/ios` and `/android` folders are git-ignored and regenerated on demand via `npx expo prebuild`. This is the default scaffold pattern and is better for our needs (config plugins handle most native customisation). Run `prebuild` only when (a) building a dev client, (b) building for store submission, or (c) adding a native module not covered by an Expo config plugin. Do NOT commit `/ios` and `/android` to git. (Reaffirmed canonical 2026-05-29 — the Phase 0 prompt said "Bare" in error; CNG wins.)
 
-19. **[NEW PATCH] Mapbox SDK instead of MapLibre + MapTiler.** Spec specified `@maplibre/maplibre-react-native` rendering MapTiler tiles. Reversed: use `@rnmapbox/maps` rendering Mapbox tiles. Reasoning:
+19. **[PATCHED] Mapbox SDK instead of MapLibre + MapTiler.** Spec specified `@maplibre/maplibre-react-native` rendering MapTiler tiles. Reversed: use `@rnmapbox/maps` rendering Mapbox tiles. Reasoning:
     - **Free tier covers us through PMF.** Mapbox: 25K mobile MAUs/month free. We're targeting 1K users by Month 5. Versus MapTiler's $29/month flat from day 1 (~₹15-20K saved over 6-month MVP).
     - **The RN binding is dramatically better-maintained.** `@rnmapbox/maps` has full-time engineering behind it; MapLibre's RN bindings have had unmaintained stretches with open issues sitting for months. For a solo dev, debugging binding internals is not the use of time.
     - **Built for custom-UI rendering.** Mapbox was designed for app-skinned maps, not navigation. For Hexa where the map IS the game UI, the customisation surface matters more than the cost difference at our scale.
@@ -211,58 +249,63 @@ Each patch overrides the corresponding section of the PDF. The PDF stays as the 
     - **Billing alert from day one**: set a Mapbox usage alert at 20K MAU and a hard cap at 40K so a viral spike doesn't generate a surprise bill. Mapbox dashboard → Account → Usage → Notifications.
     - Tokens need to be wired through the Expo config plugin before any iOS build, or compile fails. Read https://docs.mapbox.com/help/tutorials/use-mapbox-gl-js-with-react-native/ and the `@rnmapbox/maps` Expo install guide before starting Phase 2.
 
-## Dependency Adjustments vs PDF Section 5.1
+20. **[PATCHED] MSG91 deferred to pre-production; dev auth uses Supabase test OTP.** Setting up the MSG91 account, OTP template, and Supabase Custom SMS Provider config is deferred until the pre-production / launch run-up — it is NOT required to build or test Phases 1–11. `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID` stay blank in `.env.local` until then. During development, build the full phone-OTP flow against **Supabase Auth test phone numbers** (Auth → Sign In / Providers → Phone → add test numbers with fixed 6-digit OTP codes). This exercises the real `supabase.auth.signInWithOtp()` / `verifyOtp()` client path and Supabase's session lifecycle without sending a single SMS or spending a paisa. At launch, wire MSG91 via the Custom SMS Provider per patch #6 — **no client code changes, only Supabase Auth config**. Reason (Sai, 2026-05-28): don't pay for or configure SMS before there's anything to ship.
+
+21. **[PATCHED] Android-first development; Apple enrollment + iOS deferred to pre-launch.** Sai develops on Windows 11 (no Mac). Consequence: no iOS simulator, and a custom iOS dev client can't be installed on a physical iPhone without either a Mac (Xcode) or a **paid Apple Developer account** (EAS internal distribution needs device provisioning). Decision (Sai, 2026-05-29): build and test everything on **Android** (emulator + physical Android via an `expo-dev-client` build — local Android Studio or EAS, no paid account needed) through the dev phases. **Plain Expo Go is insufficient from Phase 1 onward** (native modules: `react-native-mmkv` in Phase 1, `@rnmapbox/maps` in Phase 2) — use a custom dev client, not Expo Go. Apple enrollment is deferred to the pre-launch run-up; start it ~3 weeks before target ship (can take up to 21 days — patch #15 — and it gates TestFlight + Phase 8 App Attest). **A dedicated iOS pass before launch is mandatory** to validate the iOS-divergent surfaces: background GPS (Phases 3/9), push notifications (Phase 4), App Attest (Phase 8). Do not assume Android-tested behaviour transfers to iOS there. _(Update 2026-05-29: Apple Developer Program now applied — enrollment in progress; iOS testing on Sai's iPhone unlocks once it activates. Android-first holds until then.)_
+
+---
+
+**[NEW IN v3 SPEC]** — patches #22+ below correct the v3 design spec (delivered 2026-05-29) or the v3 build spec. _None yet._
+
+## Dependency Adjustments
 
 Drop entirely (already absent from scaffold):
-- `viem` — Ethereum library; contradicts the no-crypto principle in Section 1.4. Copy-paste error in the PDF.
+- `viem` — Ethereum library; contradicts the no-crypto principle. Copy-paste error in the PDF.
 - `react-native-keyboard-controller` — overkill for OTP + a handful of inputs. Default RN keyboard behaviour is fine for MVP.
 - `@xstate/react` — for the capture FSM, prefer a plain TypeScript discriminated union + switch. One fewer dep to maintain.
 
-Add only when their phase arrives — do not pre-install:
+Add only when their phase arrives — do not pre-install, and **ask before installing**:
+- **Phase 0 (component library):** `nativewind` + `tailwindcss`, `react-native-gesture-handler`, `@gorhom/bottom-sheet`, `expo-haptics`. _(Note: the v3 design spec's component library is built in Phase 0, which pulls `expo-haptics` — Button §3.1 — and `@gorhom/bottom-sheet` — §3.6 — forward from their old Phase 4 slot. `react-native-reanimated` is already installed.)_
 - Phase 1: `zustand`, `react-native-mmkv`, `@supabase/supabase-js`, `react-native-toast-message`
 - Phase 2: `@rnmapbox/maps`, `h3-js`, `@tanstack/react-query`
 - Phase 3: `expo-location`, `expo-task-manager`, `expo-sensors`
-- Phase 4: `expo-haptics`, `expo-notifications`, `expo-secure-store`
+- Phase 4: `expo-notifications`, `expo-secure-store`
 - Phase 6: `date-fns`, `react-native-view-shot`, `expo-sharing`, `expo-image-manipulator`
+- Phase 1 (icons): Tabler Icons (per design spec §2.6)
 
 Versions: always pin to whatever https://docs.expo.dev/versions/v56.0.0/ recommends for the installed SDK.
 
-## Conventions
-
-- **TypeScript strict mode.** `tsc --noEmit` must pass before any commit. Already on in `tsconfig.json`.
-- **Conventional Commits.** `feat(scope): summary`, `fix(scope): summary`, `chore: summary`, `docs: summary`, `refactor(scope): summary`, `test(scope): summary`. Scope examples: `capture`, `map`, `auth`, `db`, `ci`.
-- **Times are IST.** Use `Asia/Kolkata` in all SQL, `date-fns-tz` on the client. Never store IST as a naive timestamp.
-- **Currency is INR.** Never USD in user-facing strings. Use `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })`.
-- **Comment WHY, not WHAT.** Code shows what; comments explain the game-design or constraint reason.
-- **Ask before:** adding any dependency, changing the DB schema, changing capture-FSM states, or any requirement that's ambiguous in the PDF.
-- **End of each phase:** run the acceptance checklist explicitly in the chat. If any box fails, stop and fix before proceeding.
-- **Commit cadence:** at least one commit per logical sub-task within a phase. Push to `main` after every commit that passes `tsc --noEmit`.
-
-## Project Layout (scaffold + planned)
+## Project Layout (target — scaffolded in Phase 0)
 
 ```
 hexa/
-├── app/                     # Expo Router (file-based routing)
-├── components/              # Reusable UI (to be filled phase-by-phase)
-├── constants/               # Theme, colors, magic numbers
-├── assets/                  # Images, fonts, sounds, medal SVGs
-├── lib/                     # [planned, Phase 1+] Pure logic, no UI
-├── stores/                  # [planned, Phase 1+] Zustand stores
-├── hooks/                   # [planned, Phase 1+] Custom hooks
-├── types/                   # [planned, Phase 1+] Shared types
-├── scripts/                 # [planned, Phase 3+] One-off scripts (hex generation, seed)
-├── supabase/                # [planned, Phase 1+] Migrations + Edge Functions
-├── CLAUDE.md                # This file
-├── AGENTS.md                # Auto-generated reminder to read versioned Expo docs
-├── package.json
-├── app.json                 # Expo config
-├── tsconfig.json
+├── app/
+│   ├── (auth)/              # phone, otp, onboarding, profile-setup, permissions
+│   ├── (tabs)/              # index (map), leaderboard, friends, profile
+│   └── _devtools/           # components.tsx — visual QA demo screen
+├── components/
+│   ├── ui/                  # Button, Card, Badge, Avatar, Input, BottomSheet, Toast,
+│   │                        #   SubToggle, HoldToConfirm, FeatureGate, MetricRow,
+│   │                        #   ProgressIndicator, EmptyState
+│   ├── capture/             # [Phase 2+]
+│   ├── map/                 # [Phase 2+]
+│   └── shared/              # [Phase 2+]
+├── lib/                     # utils, supabase, h3, capture, location, antiCheat, points, medals
+├── stores/                  # userStore, mapStore, captureStore, notificationStore
+├── hooks/                   # useLocation, useCurrentUser, useCapture, useStreak
+├── types/                   # database, game, api
+├── theme/                   # tokens.ts (single source of truth), index.ts
+├── docs/                    # hexa-build-spec.pdf, design spec (to be moved here)
+├── tailwind.config.js
+├── CLAUDE.md                # this file
+├── AGENTS.md                # auto-generated: read versioned Expo docs
+├── package.json / app.json / tsconfig.json
 └── .env.local               # gitignored — local secrets only
 ```
 
 ## Notes for Future Claude Sessions
 
-- The scaffold's auto-generated `AGENTS.md` reminds you to read `https://docs.expo.dev/versions/v56.0.0/` before writing native-touching code. Honour it.
-- The source-of-truth PDF lives at [docs/hexa-build-spec.pdf](docs/hexa-build-spec.pdf) — read the relevant phase section in full before starting work on it.
-- Memory entries at `C:\Users\chara\.claude\projects\c--Users-chara-Downloads-IDK\memory\` track which phase we're in. Keep them current.
-- The user (Sai) is the sole founder + sole developer. They are sharp, opinionated, and have already corrected the spec 18 times before any code was written. Trust their decisions; ask before re-litigating.
+- `AGENTS.md` reminds you to read `https://docs.expo.dev/versions/v56.0.0/` before writing native-touching code. Honour it.
+- Read the relevant phase section of the v3 design spec (UI) and build spec (logic) in full before starting that phase.
+- Memory entries at `C:\Users\chara\.claude\projects\c--Users-chara-Downloads-IDK\memory\` track the current phase. Keep them current.
+- The user (Sai) is the sole founder + sole developer — sharp, opinionated, and has corrected the spec 21 times before real code was written. Trust the decisions; ask before re-litigating. They will push back hard on drift, unrequested features, INTVL copying, or phase-skipping — the spec exists to prevent drift over a 10-week MVP.
