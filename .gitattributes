@@ -1,0 +1,22 @@
+# Normalize text files to LF in the repository (checkout as LF on all platforms).
+* text=auto eol=lf
+
+# Binary assets — never apply line-ending conversion (prevents corruption).
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+*.mov binary
+*.zip binary
+*.keystore binary
+*.jks binary
