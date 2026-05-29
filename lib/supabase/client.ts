@@ -5,6 +5,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createMMKV } from 'react-native-mmkv';
 
+import type { Database } from '@/types/database';
+
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -37,7 +39,7 @@ const mmkvAuthStorage = {
   },
 };
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase: SupabaseClient<Database> = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: mmkvAuthStorage,
     autoRefreshToken: true,
