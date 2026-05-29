@@ -1,5 +1,8 @@
-// Phase 1 — current authenticated user from userStore + Supabase session.
-// Signature stub; implemented in Phase 1.
+// Current authenticated user's profile row + loading flag, from userStore.
+import { useUserStore } from '@/stores/userStore';
+
 export function useCurrentUser() {
-  throw new Error('useCurrentUser: not implemented until Phase 1');
+  const user = useUserStore((s) => s.user);
+  const isLoading = useUserStore((s) => s.isLoading);
+  return { user, isLoading };
 }
