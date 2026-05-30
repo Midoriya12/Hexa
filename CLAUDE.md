@@ -277,6 +277,8 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
     - **Authority order (visuals only) becomes:** Patches > INTVL layout blueprint > v3 Design Spec visuals. The design spec's **tokens** (colour/type/spacing), the **build spec** (data/logic/schema), and **all patches** still govern. Where an INTVL layout can't be reconciled with a locked decision, the locked decision wins and the conflict is flagged.
     - A per-screen INTVL→Hexa mapping is produced before rebuilding Phase 1 screens (phone-OTP has no direct INTVL equivalent, so its visual language is adapted from INTVL's auth/input/button styling).
 
+31. **[PATCHED] Bottom nav = 5 tabs incl. Feed (Map · Leaderboard · Friends · Feed · Profile).** Decision (Sai, 2026-05-30) — Feed is a permanent bottom tab, not buried in Profile. Overrides design-spec §4.1 (which kept 4 tabs in MVP and only swapped Feed in for Friends at Phase 13) AND patch #30 carve-out (d). Medals stays accessed from Profile. Tab labels: "Leaderboard" shown as **"Ranks"** and font 11px so 5 labels fit on narrow Android widths (the small-device concern §4.1 raised). Feed remains a Phase-13 *feature* (mock content until then); only its nav placement is pulled forward.
+
 ---
 
 **[NEW IN v3 SPEC]** — patches below this line specifically correct the v3 design spec (delivered 2026-05-29). _None yet._

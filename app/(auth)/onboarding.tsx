@@ -1,15 +1,13 @@
 // Onboarding — bold intro in the INTVL visual language (dark + saffron). INTVL has
 // no onboarding carousel, so this applies the style, not a specific screen.
 import { useRef, useState } from 'react';
-import { Dimensions, FlatList, Text, View, type ViewToken } from 'react-native';
+import { FlatList, Text, useWindowDimensions, View, type ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconFlag, IconGift, IconHexagons } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui';
 import { colors } from '@/theme';
-
-const { width } = Dimensions.get('window');
 
 interface Page {
   key: string;
@@ -41,6 +39,7 @@ const PAGES: Page[] = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions(); // live width — adapts to rotation / screen size
   const listRef = useRef<FlatList<Page>>(null);
   const [index, setIndex] = useState(0);
 

@@ -11,7 +11,6 @@ import {
   IconClock,
   IconCrown,
   IconGift,
-  IconLayoutGrid,
   IconMedal,
   IconPalette,
   IconSettings,
@@ -129,20 +128,12 @@ export default function ProfileScreen() {
           />
         </Card>
 
-        {/* Dev-only preview menu to examine non-tab screens; removed when those ship in-flow. */}
-        <Text className="mb-2 mt-6 text-label-sm uppercase text-ink-600" style={{ letterSpacing: 0.5 }}>
-          Preview screens (dev)
-        </Text>
-        <View className="divide-y divide-ink-400 overflow-hidden rounded-md bg-ink-200">
+        {/* Medals entry (design spec §6.11 → §6.14). */}
+        <View className="mt-6 overflow-hidden rounded-md bg-ink-200">
           <Pressable className="flex-row items-center px-4 py-3" onPress={() => router.push('/medals' as Href)}>
-            <IconMedal size={22} color={colors.ink[700]} strokeWidth={1.75} />
+            <IconMedal size={22} color={colors.ink[700]} />
             <Text className="ml-3 flex-1 text-body-lg text-ink-900">Medals</Text>
-            <IconChevronRight size={20} color={colors.ink[600]} strokeWidth={1.75} />
-          </Pressable>
-          <Pressable className="flex-row items-center px-4 py-3" onPress={() => router.push('/feed' as Href)}>
-            <IconLayoutGrid size={22} color={colors.ink[700]} strokeWidth={1.75} />
-            <Text className="ml-3 flex-1 text-body-lg text-ink-900">Feed</Text>
-            <IconChevronRight size={20} color={colors.ink[600]} strokeWidth={1.75} />
+            <IconChevronRight size={20} color={colors.ink[600]} />
           </Pressable>
         </View>
 

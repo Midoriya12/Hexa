@@ -1,10 +1,10 @@
 // Feed — INTVL 19 "Explore" layout (2-col post grid + filter toggle), saffron.
-// Phase 13 feature; DESIGN PREVIEW with mock capture posts. Not a bottom-nav tab.
+// Bottom-nav tab (Sai's call, overrides design-spec §4.1 4-tab plan — patch #31).
+// Phase 13 feature; DESIGN PREVIEW with mock capture posts.
 import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconChevronLeft, IconHeart, IconHexagonFilled, IconMessageCircle } from '@/components/ui/Icon';
-import { useRouter } from 'expo-router';
+import { IconHeart, IconHexagonFilled, IconMessageCircle } from '@/components/ui/Icon';
 
 import { Avatar, SubToggle } from '@/components/ui';
 import { colors } from '@/theme';
@@ -62,17 +62,12 @@ function PostCard({ post }: { post: Post }) {
 }
 
 export default function FeedScreen() {
-  const router = useRouter();
   const [tab, setTab] = useState('Explore');
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
-      <View className="h-14 flex-row items-center px-2">
-        <IconChevronLeft size={26} color={colors.ink[900]} strokeWidth={1.75} onPress={() => router.back()} />
-        <Text className="ml-1 text-heading-md text-ink-900">Feed</Text>
-      </View>
-
+    <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+        <Text className="mb-4 mt-2 text-display-sm text-ink-900">Feed</Text>
         <SubToggle options={['Explore', 'Following']} value={tab} onChange={setTab} />
         <Text className="mb-4 mt-3 text-body-sm text-ink-700">Captures near you · {tab}</Text>
 
