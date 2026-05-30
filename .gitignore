@@ -47,5 +47,10 @@ docs/reference/*.txt
 # rendered wireframe images (derived from the PDFs; regenerate with pymupdf)
 docs/_wf/
 
+# INTVL reference media (large competitor screenshots/video; kept local, not committed)
+docs/reference/*.mov
+docs/reference/*.mp4
+docs/reference/intvl-screenshots/
+
 # EAS / Expo build artifacts
 dist/
