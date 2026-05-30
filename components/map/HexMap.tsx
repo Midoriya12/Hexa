@@ -3,6 +3,7 @@
 // AFTER the dev client is rebuilt with @rnmapbox/maps, or the app will crash.
 // Hex/zone overlays come in Phase 2/3 once hexes are generated.
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useIsFocused } from 'expo-router';
 import Mapbox, { Camera, MapView } from '@rnmapbox/maps';
 
 // Public token (pk.*) — fine to bundle. Telemetry off (patch #19 / DPDPA 2023).
@@ -19,6 +20,12 @@ interface HexMapProps {
 }
 
 export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
+  // Mapbox GL contends for a single drawing surface across MapView instances; with the
+  // tab navigator keeping screens mounted, two live maps (Play + Start) leaves one blank.
+  // Mount the map only while its screen is focused so exactly one surface is ever live.
+  const isFocused = useIsFocused();
+  if (!isFocused) return null;
+
   return (
     <MapView
       style={style ?? StyleSheet.absoluteFill}
