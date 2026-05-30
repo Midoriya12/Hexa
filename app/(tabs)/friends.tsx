@@ -2,7 +2,7 @@
 // DESIGN PREVIEW: mock friends/requests; live data is Phase 7.
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconSearch, IconUserPlus } from '@tabler/icons-react-native';
+import { IconSearch, IconUserPlus } from '@/components/ui/Icon';
 
 import { Avatar, Badge, Button, Card } from '@/components/ui';
 import { colors } from '@/theme';

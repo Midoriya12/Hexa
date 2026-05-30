@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconChevronLeft, IconHeart, IconHexagonFilled, IconMessageCircle } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconHeart, IconHexagonFilled, IconMessageCircle } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Avatar, SubToggle } from '@/components/ui';

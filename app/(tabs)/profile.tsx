@@ -17,7 +17,7 @@ import {
   IconSettings,
   IconUserPlus,
   IconWalk,
-} from '@tabler/icons-react-native';
+} from '@/components/ui/Icon';
 
 import { Avatar, Badge, Button, Card, LinearProgress, MetricRow } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';

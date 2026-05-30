@@ -2,7 +2,7 @@
 // the INTVL visual language). Grid of earned/locked medals. DESIGN PREVIEW: mock.
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconChevronLeft, IconLock, IconMedal } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconLock, IconMedal } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Badge } from '@/components/ui';

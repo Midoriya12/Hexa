@@ -14,7 +14,7 @@ import {
   IconMapPin,
   IconShieldLock,
   IconUserCircle,
-} from '@tabler/icons-react-native';
+} from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui';

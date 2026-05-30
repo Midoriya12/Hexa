@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Dimensions, FlatList, Text, View, type ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconFlag, IconGift, IconHexagons } from '@tabler/icons-react-native';
+import { IconFlag, IconGift, IconHexagons } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui';

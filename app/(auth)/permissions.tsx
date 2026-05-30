@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconBell, IconMapPin } from '@tabler/icons-react-native';
+import { IconBell, IconMapPin } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui';

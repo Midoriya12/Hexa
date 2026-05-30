@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconPencil } from '@tabler/icons-react-native';
+import { IconPencil } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Avatar, Button, SubToggle } from '@/components/ui';

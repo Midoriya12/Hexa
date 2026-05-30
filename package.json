@@ -3,10 +3,10 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@sentry/react-native": "~7.11.0",
     "@supabase/supabase-js": "^2.106.2",
-    "@tabler/icons-react-native": "^3.44.0",
     "expo": "~56.0.4",
     "expo-blur": "~56.0.3",
     "expo-constants": "~56.0.15",

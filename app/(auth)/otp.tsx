@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
-import { IconChevronLeft } from '@tabler/icons-react-native';
+import { IconChevronLeft } from '@/components/ui/Icon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { OtpInput, Spinner } from '@/components/ui';

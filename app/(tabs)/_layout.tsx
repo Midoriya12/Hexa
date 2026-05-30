@@ -3,7 +3,7 @@
 // ink-700 inactive, dark translucent bar. (True frosted blur needs expo-blur — a
 // later polish; a solid dark bar approximates glass.blur for now.)
 import { Tabs } from 'expo-router';
-import { IconTrophy, IconUser, IconUsers } from '@tabler/icons-react-native';
+import { IconTrophy, IconUser, IconUsers } from '@/components/ui/Icon';
 
 import { HexIcon } from '@/components/shared/HexIcon';
 import { colors } from '@/theme';
