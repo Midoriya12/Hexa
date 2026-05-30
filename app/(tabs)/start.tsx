@@ -6,12 +6,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 
 import { Button } from '@/components/ui';
+import { HexMap } from '@/components/map/HexMap';
 import { HexIcon } from '@/components/shared/HexIcon';
-import { IconStack, IconTarget, IconWalk } from '@/components/ui/Icon';
+import { IconStack, IconTarget } from '@/components/ui/Icon';
 import { colors } from '@/theme';
 
 function ControlButton({ children }: { children: React.ReactNode }) {
@@ -44,17 +44,8 @@ export default function StartScreen() {
 
   return (
     <View className="flex-1 bg-ink-50">
-      {/* ── Map placeholder (HexMap swaps in after the native Mapbox build) ── */}
-      <LinearGradient
-        colors={[colors.ink[100], colors.ink[50]]}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      <View className="absolute left-0 right-0 items-center" style={{ top: insets.top + 120 }}>
-        <View className="h-16 w-16 items-center justify-center rounded-2xl bg-ink-200">
-          <IconWalk size={36} color={colors.ink[500]} />
-        </View>
-        <Text className="mt-3 text-body-sm text-ink-600">Your route draws here once you start walking</Text>
-      </View>
+      {/* ── Live map (globe + zoom); route overlay arrives with Walk Sessions ── */}
+      <HexMap />
 
       {/* ── Floating controls (right) ── */}
       <View style={{ position: 'absolute', right: 16, top: insets.top + 12 }}>

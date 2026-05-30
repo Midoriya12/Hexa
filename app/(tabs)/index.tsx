@@ -5,11 +5,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/components/ui/Icon';
 
 import { Avatar } from '@/components/ui';
+import { HexMap } from '@/components/map/HexMap';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { colors } from '@/theme';
@@ -46,17 +46,8 @@ export default function PlayScreen() {
 
   return (
     <View className="flex-1 bg-ink-50">
-      {/* ── Map placeholder (real map fills here with Mapbox) ── */}
-      <LinearGradient
-        colors={[colors.ink[100], colors.ink[50]]}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      <View className="absolute left-0 right-0 items-center" style={{ top: insets.top + 160 }}>
-        <View className="h-16 w-16 items-center justify-center rounded-2xl bg-ink-200">
-          <HexIcon size={36} color={colors.ink[500]} />
-        </View>
-        <Text className="mt-3 text-body-sm text-ink-600">Live map + globe arrive with Mapbox</Text>
-      </View>
+      {/* ── Live map (globe + zoom), full-bleed behind everything ── */}
+      <HexMap />
 
       {/* ── Top mode bar (full width, neutral) ── */}
       <View style={{ paddingTop: insets.top + 8 }} className="px-4">
