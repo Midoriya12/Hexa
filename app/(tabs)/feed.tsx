@@ -1,59 +1,118 @@
-// Feed — INTVL 19 "Explore" layout (2-col post grid + filter toggle), saffron.
-// Bottom-nav tab (Sai's call, overrides design-spec §4.1 4-tab plan — patch #31).
-// Phase 13 feature; DESIGN PREVIEW with mock capture posts.
+// Feed — matches the real INTVL "Feed / Explore" screenshot (single-column rich
+// posts), recoloured saffron, Hexa content (captures/walks, not runs). Bottom-nav tab.
+// Phase 13 feature; DESIGN PREVIEW with mock posts.
 import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconHeart, IconHexagonFilled, IconMessageCircle } from '@/components/ui/Icon';
+import { IconBell, IconChevronRight, IconHeart, IconMessageCircle, IconTrophy } from '@/components/ui/Icon';
 
-import { Avatar, SubToggle } from '@/components/ui';
+import { Avatar } from '@/components/ui';
 import { colors } from '@/theme';
 
 interface Post {
   name: string;
+  level: number;
+  time: string;
   hood: string;
   caption: string;
-  ip: number;
+  distance: string;
+  duration: string;
+  hexes: number;
   likes: number;
   comments: number;
-  tint: string;
+  photos: string[]; // mock photo tints
 }
 
 const POSTS: Post[] = [
-  { name: 'Priya', hood: 'HSR', caption: 'captured a Power hex', ip: 170, likes: 24, comments: 3, tint: colors.player.teal },
-  { name: 'Rohit', hood: 'Koramangala', caption: 'hit a 12-day streak', ip: 0, likes: 41, comments: 8, tint: colors.player.crimson },
-  { name: 'Aisha', hood: 'Indiranagar', caption: 'captured a Crown hex', ip: 250, likes: 88, comments: 12, tint: colors.player.gold },
-  { name: 'Karthik', hood: 'HSR', caption: 'stole 3 hexes', ip: 130, likes: 9, comments: 1, tint: colors.player.sky },
-  { name: 'Meera', hood: 'BTM', caption: 'earned Night Owl', ip: 0, likes: 17, comments: 2, tint: colors.player.purple },
-  { name: 'Sandeep', hood: 'HSR', caption: 'captured 5 hexes', ip: 500, likes: 6, comments: 0, tint: colors.player.forest },
+  {
+    name: 'Priya',
+    level: 30,
+    time: '19 hours ago',
+    hood: 'HSR Layout',
+    caption: '10 hexes?! Lowkey thought I captured way more, still a solid evening walk haha',
+    distance: '9.70 km',
+    duration: '55:09',
+    hexes: 10,
+    likes: 193,
+    comments: 10,
+    photos: [colors.player.forest, colors.player.gold],
+  },
+  {
+    name: 'Rohit',
+    level: 9,
+    time: '19 hours ago',
+    hood: 'Koramangala',
+    caption: 'Nice loop around the lake, testing the app',
+    distance: '4.91 km',
+    duration: '31:25',
+    hexes: 4,
+    likes: 42,
+    comments: 3,
+    photos: [colors.player.teal, colors.player.crimson],
+  },
 ];
 
-function PostCard({ post }: { post: Post }) {
+const TABS = ['Explore', 'Following'] as const;
+
+function PostView({ post }: { post: Post }) {
   return (
-    <View className="mb-3 overflow-hidden rounded-md bg-ink-200" style={{ width: '48.5%' }}>
-      {/* "photo" placeholder */}
-      <View className="h-28 items-center justify-center" style={{ backgroundColor: `${post.tint}33` }}>
-        <IconHexagonFilled size={40} color={post.tint} />
-      </View>
-      <View className="p-3">
-        <View className="flex-row items-center">
-          <Avatar size={24} name={post.name} />
-          <Text className="ml-2 flex-1 text-label-md text-ink-900" numberOfLines={1}>
-            {post.name}
-          </Text>
+    <View className="mb-6">
+      {/* author row */}
+      <View className="flex-row items-center">
+        <View>
+          <Avatar size={48} name={post.name} />
+          <View className="absolute -bottom-1 left-1 rounded-full bg-ink-50 px-1.5 py-0.5">
+            <Text className="text-[10px] font-bold text-ink-900">L{post.level}</Text>
+          </View>
         </View>
-        <Text className="mt-2 text-body-sm text-ink-800" numberOfLines={2}>
-          {post.caption} in {post.hood}
-        </Text>
-        {post.ip > 0 ? <Text className="mt-1 text-label-sm text-saffron-600">+{post.ip} IP</Text> : null}
-        <View className="mt-2 flex-row items-center gap-4">
+        <View className="ml-3 flex-1">
+          <Text className="text-heading-sm text-ink-900">{post.name}</Text>
+          <Text className="text-body-sm text-ink-700">{post.time}</Text>
+          <Text className="text-body-sm text-ink-700">{post.hood} 🇮🇳</Text>
+        </View>
+      </View>
+
+      <Text className="mt-3 text-body-md text-ink-800">{post.caption}</Text>
+
+      {/* photo carousel (mock) */}
+      <View className="mt-3 flex-row gap-1">
+        {post.photos.map((tint, i) => (
+          <View
+            key={i}
+            className="h-44 flex-1 rounded-md"
+            style={{ backgroundColor: `${tint}55` }}
+          />
+        ))}
+      </View>
+
+      {/* stats bar */}
+      <View className="mt-3 flex-row items-center rounded-md bg-ink-100 p-3">
+        <View className="flex-1">
+          <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm text-ink-900">
+            {post.distance}
+          </Text>
+          <Text className="text-label-sm uppercase text-ink-600">Distance</Text>
+        </View>
+        <View className="flex-1">
+          <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm text-ink-900">
+            {post.duration}
+          </Text>
+          <Text className="text-label-sm uppercase text-ink-600">Duration</Text>
+        </View>
+        <View className="flex-1">
+          <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm text-saffron-600">
+            {post.hexes}
+          </Text>
+          <Text className="text-label-sm uppercase text-ink-600">Hexes</Text>
+        </View>
+        <View className="flex-row items-center gap-3 border-l border-ink-400 pl-4">
           <View className="flex-row items-center gap-1">
-            <IconHeart size={16} color={colors.ink[600]} strokeWidth={1.75} />
-            <Text className="text-label-sm text-ink-600">{post.likes}</Text>
+            <IconHeart size={18} color={colors.ink[600]} />
+            <Text className="text-body-sm text-ink-700">{post.likes}</Text>
           </View>
           <View className="flex-row items-center gap-1">
-            <IconMessageCircle size={16} color={colors.ink[600]} strokeWidth={1.75} />
-            <Text className="text-label-sm text-ink-600">{post.comments}</Text>
+            <IconMessageCircle size={18} color={colors.ink[600]} />
+            <Text className="text-body-sm text-ink-700">{post.comments}</Text>
           </View>
         </View>
       </View>
@@ -62,22 +121,43 @@ function PostCard({ post }: { post: Post }) {
 }
 
 export default function FeedScreen() {
-  const [tab, setTab] = useState('Explore');
+  const [tab, setTab] = useState<string>('Explore');
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
-        <Text className="mb-4 mt-2 text-display-sm text-ink-900">Feed</Text>
-        <SubToggle options={['Explore', 'Following']} value={tab} onChange={setTab} />
-        <Text className="mb-4 mt-3 text-body-sm text-ink-700">Captures near you · {tab}</Text>
+      {/* header: bell · Feed · avatar */}
+      <View className="h-12 flex-row items-center justify-between px-4">
+        <IconBell size={24} color={colors.ink[900]} />
+        <Text className="text-heading-md text-ink-900">Feed</Text>
+        <Avatar size={32} name="Charan12" />
+      </View>
 
-        <View className="flex-row flex-wrap justify-between">
-          {POSTS.map((p) => (
-            <PostCard key={p.name + p.caption} post={p} />
-          ))}
-        </View>
+      {/* underline tabs (match INTVL) */}
+      <View className="flex-row border-b border-ink-400">
+        {TABS.map((t) => {
+          const active = t === tab;
+          return (
+            <Pressable key={t} className="flex-1 items-center py-3" onPress={() => setTab(t)}>
+              <Text className={`text-heading-sm ${active ? 'text-ink-900' : 'text-ink-600'}`}>{t}</Text>
+              {active ? <View className="absolute bottom-0 h-0.5 w-16 rounded-full bg-saffron-600" /> : null}
+            </Pressable>
+          );
+        })}
+      </View>
 
-        <Text className="mt-2 text-center text-body-sm text-ink-600">Mock feed — live in Phase 13</Text>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 }}>
+        {/* territory leaderboards card */}
+        <Pressable className="mb-6 flex-row items-center rounded-md bg-ink-200 p-4">
+          <IconTrophy size={24} color={colors.saffron[600]} />
+          <Text className="ml-3 flex-1 text-body-lg text-ink-900">Bangalore territory leaderboards</Text>
+          <IconChevronRight size={20} color={colors.ink[600]} />
+        </Pressable>
+
+        {POSTS.map((p) => (
+          <PostView key={p.name} post={p} />
+        ))}
+
+        <Text className="text-center text-body-sm text-ink-600">Mock feed — live in Phase 13</Text>
       </ScrollView>
     </SafeAreaView>
   );
