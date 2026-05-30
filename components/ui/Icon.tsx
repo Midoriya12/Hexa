@@ -52,3 +52,5 @@ export const IconUserCircle = make('account-circle');
 export const IconUserPlus = make('account-plus');
 export const IconUsers = make('account-group');
 export const IconWalk = make('walk');
+export const IconWatch = make('watch');
+export const IconNews = make('newspaper-variant-outline');

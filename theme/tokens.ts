@@ -68,6 +68,17 @@ export const colors = {
     dark: 'rgba(10, 10, 10, 0.75)',
     blur: 'rgba(20, 20, 20, 0.6)', // pair with backdrop-blur
   },
+
+  // Light surfaces — used ONLY on the Me + Settings screens, which match INTVL's
+  // light treatment (the rest of the app stays dark `ink`). Saffron is still the accent.
+  light: {
+    bg: '#F2F2F4', // screen background (light grey)
+    card: '#FFFFFF', // white cards/rows
+    border: '#E4E4E8',
+    ink: '#1A1A1A', // primary dark text
+    sub: '#6E6E73', // secondary text
+    faint: '#A0A0A6', // tertiary text
+  },
 } as const;
 
 // §2.2 — Typography ----------------------------------------------------------
