@@ -14,7 +14,8 @@ import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { colors } from '@/theme';
 
-const CLAN = { name: 'HSR Walkers', hexes: 3392, members: 124 };
+const CLAN_MEMBER_CAP = 100; // clans are capped at 100 members (patch #32)
+const CLAN = { name: 'HSR Walkers', hexes: 3392, members: 92 };
 const MEMBERS = [
   { rank: 1, name: 'Priya', hexes: 842 },
   { rank: 2, name: 'Rohit', hexes: 718 },
@@ -41,7 +42,7 @@ export default function PlayScreen() {
   const [mode, setMode] = useState('Clan');
   const [tab, setTab] = useState('Leaderboard');
   const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['20%', '58%', '92%'], []);
+  const snapPoints = useMemo(() => ['32%', '60%', '92%'], []);
 
   return (
     <View className="flex-1 bg-ink-50">
@@ -118,7 +119,7 @@ export default function PlayScreen() {
             <View className="ml-3 flex-1">
               <Text className="text-heading-md text-ink-900">{mode === 'Clan' ? CLAN.name : 'Bangalore'}</Text>
               <Text className="text-body-sm text-ink-700">
-                {mode === 'Clan' ? `${CLAN.members} members` : 'City standings'}
+                {mode === 'Clan' ? `${CLAN.members} / ${CLAN_MEMBER_CAP} members` : 'City standings'}
               </Text>
             </View>
             <View className="items-end">
