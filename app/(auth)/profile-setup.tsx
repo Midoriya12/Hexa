@@ -1,12 +1,14 @@
-// Profile Setup — design spec §6.5. 3 steps, no back across steps.
-// Step 1 Identity (username + display name), Step 2 Location (pincode), Step 3 Play depth.
-// GPS auto-detect deferred to Phase 3 (patch #29) — manual pincode selection only.
+// Profile Setup — faithful to INTVL 28 "Profile — Edit" (dark, header + Done,
+// centered avatar + pencil, labelled fields, "Terra colour" swatch row), saffron.
+// Single screen (replaces the 3-step wizard) per the INTVL blueprint. Keeps username
+// uniqueness check + pincode picker + writes the users row.
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { IconPencil } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
 
-import { Button, Card, Spinner } from '@/components/ui';
+import { Avatar, Button, SubToggle } from '@/components/ui';
 import { supabase } from '@/lib/supabase/client';
 import { useUserStore } from '@/stores/userStore';
 import { BANGALORE_PINCODES, NEIGHBOURHOODS, pincodeLabel } from '@/lib/utils/bangalore';
@@ -14,25 +16,46 @@ import { colors } from '@/theme';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]+$/;
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
-type PlayDepth = 'walking' | 'competing' | 'conquering';
 
-const PLAY_DEPTHS: { key: PlayDepth; title: string; body: string }[] = [
-  { key: 'walking', title: 'Just walking', body: 'I want to explore and capture casually. Show me a clean map.' },
-  { key: 'competing', title: 'Competing', body: 'I want leaderboards, streaks, and friend rivalries.' },
-  { key: 'conquering', title: 'Conquering', body: 'Give me everything — clans, medals, paths, the deep end.' },
-];
+const PLAY_DEPTHS = ['Just walking', 'Competing', 'Conquering'] as const;
+const PLAY_KEYS: Record<string, string> = {
+  'Just walking': 'walking',
+  Competing: 'competing',
+  Conquering: 'conquering',
+};
+
+// The 8 player/hex colours (design spec §2.1).
+const HEX_COLOURS = Object.entries(colors.player) as [string, string][];
+
+// Labelled field in the INTVL profile-edit style: small grey label over the value input.
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View className="mb-4">
+      <Text className="mb-1 text-label-sm uppercase text-ink-600" style={{ letterSpacing: 0.5 }}>
+        {label}
+      </Text>
+      {children}
+    </View>
+  );
+}
 
 export default function ProfileSetupScreen() {
   const router = useRouter();
   const setUser = useUserStore((s) => s.setUser);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
   const [pincode, setPincode] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [playDepth, setPlayDepth] = useState<PlayDepth | null>(null);
+  const [hexColour, setHexColour] = useState<string>(colors.player.saffron);
+  const [playDepth, setPlayDepth] = useState<string>('Competing');
   const [submitting, setSubmitting] = useState(false);
 
   const checkUsername = async () => {
@@ -50,10 +73,9 @@ export default function ProfileSetupScreen() {
     }
   };
 
-  const step1Valid = usernameStatus === 'available' && displayName.trim().length > 0;
+  const valid = usernameStatus === 'available' && displayName.trim().length > 0 && pincode.length > 0;
 
   const submit = async () => {
-    if (!playDepth) return;
     setSubmitting(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
@@ -68,8 +90,9 @@ export default function ProfileSetupScreen() {
           display_name: displayName.trim(),
           pincode,
           home_neighbourhood: NEIGHBOURHOODS[pincode] ?? null,
+          hex_colour: hexColour,
           language_pref: 'en',
-          flags: { play_depth: playDepth },
+          flags: { play_depth: PLAY_KEYS[playDepth] },
         })
         .select()
         .single();
@@ -83,132 +106,133 @@ export default function ProfileSetupScreen() {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
-      <View className="flex-1 px-4 pt-6">
-        <Text className="mb-8 text-label-sm uppercase text-ink-600">Step {step} of 3</Text>
-
-        {step === 1 ? (
-          <View className="flex-1">
-            <Text className="text-display-sm text-ink-900">Pick a username</Text>
-            <Text className="mt-3 text-body-md text-ink-700">
-              This is what others will see when you capture or steal hexes.
-            </Text>
-
-            <View className="mt-8 flex-row items-center rounded-md border border-ink-400 bg-ink-200 px-4">
-              <Text className="text-body-lg text-ink-600">@</Text>
-              <TextInput
-                value={username}
-                onChangeText={(t) => {
-                  setUsername(t);
-                  setUsernameStatus('idle');
-                }}
-                onBlur={checkUsername}
-                placeholder="rohit_walks_bangalore"
-                placeholderTextColor={colors.ink[600]}
-                autoCapitalize="none"
-                autoCorrect={false}
-                className="ml-1 h-[52px] flex-1 text-body-lg text-ink-900"
-              />
-              {usernameStatus === 'checking' ? <Spinner /> : null}
-              {usernameStatus === 'available' ? <Text className="text-body-md text-success">✓</Text> : null}
-            </View>
-            {usernameStatus === 'taken' ? (
-              <Text className="mt-2 text-body-sm text-danger">That username is already taken</Text>
-            ) : usernameStatus === 'invalid' ? (
-              <Text className="mt-2 text-body-sm text-danger">3–20 letters, numbers or underscores</Text>
-            ) : (
-              <Text className="mt-2 text-body-sm text-ink-600">You can change this later in Settings.</Text>
-            )}
-
-            <Text className="mt-6 mb-2 text-label-md text-ink-700">Display name</Text>
-            <TextInput
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Rohit"
-              placeholderTextColor={colors.ink[600]}
-              className="h-[52px] rounded-md border border-ink-400 bg-ink-200 px-4 text-body-lg text-ink-900"
-            />
-
-            <View className="flex-1" />
-            <Button label="Continue" onPress={() => setStep(2)} disabled={!step1Valid} />
-          </View>
-        ) : step === 2 ? (
-          <View className="flex-1">
-            <Text className="text-display-sm text-ink-900">Where do you live?</Text>
-            <Text className="mt-3 text-body-md text-ink-700">
-              We&apos;ll show you the leaderboard for your neighbourhood first.
-            </Text>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setPickerOpen(true)}
-              className="mt-8 h-[52px] justify-center rounded-md border border-ink-400 bg-ink-200 px-4"
-            >
-              <Text className={`text-body-lg ${pincode ? 'text-ink-900' : 'text-ink-600'}`}>
-                {pincode ? pincodeLabel(pincode) : 'Select your pincode'}
-              </Text>
-            </Pressable>
-
-            <View className="flex-1" />
-            <Button label="Continue" onPress={() => setStep(3)} disabled={!pincode} />
-
-            <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
-              <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
-                <View className="h-14 flex-row items-center justify-between px-4">
-                  <Text className="text-heading-md text-ink-900">Select pincode</Text>
-                  <Text className="text-body-md text-saffron-600" onPress={() => setPickerOpen(false)}>
-                    Close
-                  </Text>
-                </View>
-                <FlatList
-                  data={BANGALORE_PINCODES}
-                  keyExtractor={(p) => p}
-                  initialNumToRender={20}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => {
-                        setPincode(item);
-                        setPickerOpen(false);
-                      }}
-                      className="border-b border-ink-300 px-4 py-4"
-                    >
-                      <Text className="text-body-lg text-ink-900">{pincodeLabel(item)}</Text>
-                    </Pressable>
-                  )}
-                />
-              </SafeAreaView>
-            </Modal>
-          </View>
-        ) : (
-          <View className="flex-1">
-            <Text className="text-display-sm text-ink-900">How do you want to play?</Text>
-            <Text className="mt-3 text-body-md text-ink-700">
-              We&apos;ll tune the app to your style. Change anytime.
-            </Text>
-
-            <View className="mt-8 gap-3">
-              {PLAY_DEPTHS.map((opt) => {
-                const selected = playDepth === opt.key;
-                return (
-                  <Card
-                    key={opt.key}
-                    onPress={() => setPlayDepth(opt.key)}
-                    className={selected ? 'border-2 border-saffron-600' : ''}
-                  >
-                    <Text className={`text-heading-sm ${selected ? 'text-saffron-600' : 'text-ink-900'}`}>
-                      {opt.title}
-                    </Text>
-                    <Text className="mt-1 text-body-sm text-ink-700">{opt.body}</Text>
-                  </Card>
-                );
-              })}
-            </View>
-
-            <View className="flex-1" />
-            <Button label="Start playing" onPress={submit} disabled={!playDepth} loading={submitting} />
-          </View>
-        )}
+      {/* Header: title + Done */}
+      <View className="h-14 flex-row items-center justify-center">
+        <Text className="text-heading-md text-ink-900">Set up your profile</Text>
       </View>
+
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+        {/* Avatar + edit pencil */}
+        <View className="mb-6 items-center">
+          <View>
+            <Avatar size={96} name={displayName || username || undefined} />
+            <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full border-2 border-ink-50 bg-saffron-600">
+              <IconPencil size={16} color={colors.ink[50]} strokeWidth={2} />
+            </View>
+          </View>
+        </View>
+
+        <Field label="Username">
+          <View
+            className={`flex-row items-center rounded-md border bg-ink-200 px-4 ${
+              usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-danger' : 'border-ink-400'
+            }`}
+          >
+            <Text className="text-body-lg text-ink-600">@</Text>
+            <TextInput
+              value={username}
+              onChangeText={(t) => {
+                setUsername(t);
+                setUsernameStatus('idle');
+              }}
+              onBlur={checkUsername}
+              placeholder="the_king_charan"
+              placeholderTextColor={colors.ink[600]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              className="ml-1 h-[52px] flex-1 text-body-lg text-ink-900"
+            />
+            {usernameStatus === 'available' ? <Text className="text-body-md text-success">✓</Text> : null}
+            {usernameStatus === 'checking' ? <Text className="text-body-sm text-ink-600">…</Text> : null}
+          </View>
+          {usernameStatus === 'taken' ? (
+            <Text className="mt-1 text-body-sm text-danger">That username is taken</Text>
+          ) : usernameStatus === 'invalid' ? (
+            <Text className="mt-1 text-body-sm text-danger">3–20 letters, numbers or underscores</Text>
+          ) : null}
+        </Field>
+
+        <Field label="Display name">
+          <TextInput
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Charan"
+            placeholderTextColor={colors.ink[600]}
+            className="h-[52px] rounded-md border border-ink-400 bg-ink-200 px-4 text-body-lg text-ink-900"
+          />
+        </Field>
+
+        <Field label="Home pincode">
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPickerOpen(true)}
+            className="h-[52px] justify-center rounded-md border border-ink-400 bg-ink-200 px-4"
+          >
+            <Text className={`text-body-lg ${pincode ? 'text-ink-900' : 'text-ink-600'}`}>
+              {pincode ? pincodeLabel(pincode) : 'Select your pincode'}
+            </Text>
+          </Pressable>
+        </Field>
+
+        {/* Hex colour swatches (INTVL "Terra colour") */}
+        <Field label="Hex colour">
+          <View className="flex-row flex-wrap gap-3">
+            {HEX_COLOURS.map(([name, hex]) => {
+              const selected = hexColour === hex;
+              return (
+                <Pressable
+                  key={name}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Hex colour ${name}`}
+                  onPress={() => setHexColour(hex)}
+                  className={`h-11 w-11 items-center justify-center rounded-full ${
+                    selected ? 'border-2 border-saffron-600' : ''
+                  }`}
+                >
+                  <View style={{ backgroundColor: hex }} className="h-8 w-8 rounded-full" />
+                </Pressable>
+              );
+            })}
+          </View>
+        </Field>
+
+        {/* Play depth */}
+        <Field label="How you'll play">
+          <SubToggle options={[...PLAY_DEPTHS]} value={playDepth} onChange={setPlayDepth} />
+        </Field>
+
+        <View className="mt-4">
+          <Button label="Start playing" size="lg" onPress={submit} disabled={!valid} loading={submitting} />
+        </View>
+      </ScrollView>
+
+      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
+          <View className="h-14 flex-row items-center justify-between px-4">
+            <Text className="text-heading-md text-ink-900">Select pincode</Text>
+            <Text className="text-body-md text-saffron-600" onPress={() => setPickerOpen(false)}>
+              Close
+            </Text>
+          </View>
+          <FlatList
+            data={BANGALORE_PINCODES}
+            keyExtractor={(p) => p}
+            initialNumToRender={20}
+            renderItem={({ item }) => (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setPincode(item);
+                  setPickerOpen(false);
+                }}
+                className="border-b border-ink-300 px-4 py-4"
+              >
+                <Text className="text-body-lg text-ink-900">{pincodeLabel(item)}</Text>
+              </Pressable>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

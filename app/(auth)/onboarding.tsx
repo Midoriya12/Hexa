@@ -1,11 +1,13 @@
-// Onboarding Carousel — design spec §6.4. 3 swipeable pages.
-// Visuals are static placeholders for Phase 1 (Lottie deferred — patch #26).
+// Onboarding — bold intro in the INTVL visual language (dark + saffron). INTVL has
+// no onboarding carousel, so this applies the style, not a specific screen.
 import { useRef, useState } from 'react';
 import { Dimensions, FlatList, Text, View, type ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { IconFlag, IconGift, IconHexagons } from '@tabler/icons-react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui';
+import { colors } from '@/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -13,23 +15,27 @@ interface Page {
   key: string;
   heading: string;
   body: string;
+  Icon: typeof IconHexagons;
 }
 
 const PAGES: Page[] = [
   {
     key: 'game',
-    heading: 'Walk the city. Capture it.',
-    body: 'Every neighbourhood in Bangalore is split into hex tiles. Stand on one for 20 seconds — it’s yours.',
+    heading: 'Walk the city.\nCapture it.',
+    body: 'Bangalore is split into hex tiles. Stand on one for 20 seconds — it’s yours.',
+    Icon: IconHexagons,
   },
   {
     key: 'rivalry',
-    heading: 'Your friends will steal them.',
-    body: 'Defend your turf or lose it. Build streaks, climb your pincode leaderboard, earn medals for moments worth remembering.',
+    heading: 'Defend\nyour turf.',
+    body: 'Friends and strangers steal your hexes. Build streaks, climb your pincode leaderboard, earn medals.',
+    Icon: IconFlag,
   },
   {
     key: 'reward',
-    heading: 'Walk for real things.',
-    body: 'Brand-sponsored vouchers from cafés you actually walk past. Coming soon to HSR, Indiranagar, Koramangala.',
+    heading: 'Walk for\nreal things.',
+    body: 'Brand-sponsored vouchers from cafés you actually walk past. Coming to HSR, Indiranagar, Koramangala.',
+    Icon: IconGift,
   },
 ];
 
@@ -44,20 +50,16 @@ export default function OnboardingScreen() {
   }).current;
 
   const isLast = index === PAGES.length - 1;
-
   const goNext = () => {
-    if (isLast) {
-      router.replace('/(auth)/profile-setup');
-    } else {
-      listRef.current?.scrollToIndex({ index: index + 1 });
-    }
+    if (isLast) router.replace('/(auth)/profile-setup');
+    else listRef.current?.scrollToIndex({ index: index + 1 });
   };
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
-      <View className="h-14 flex-row items-center justify-end px-4">
+      <View className="h-12 flex-row items-center justify-end px-4">
         {!isLast ? (
-          <Text className="text-body-sm text-ink-700" onPress={() => router.replace('/(auth)/profile-setup')}>
+          <Text className="text-label-md text-ink-700" onPress={() => router.replace('/(auth)/profile-setup')}>
             Skip
           </Text>
         ) : null}
@@ -73,27 +75,27 @@ export default function OnboardingScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
         renderItem={({ item }) => (
-          <View style={{ width }} className="flex-1 items-center justify-center px-6">
-            {/* Static placeholder visual (Lottie deferred — patch #26). */}
-            <View className="mb-10 h-48 w-48 items-center justify-center rounded-2xl bg-ink-200">
-              <View className="h-24 w-24 rounded-lg bg-saffron-600/30" />
+          <View style={{ width }} className="flex-1 px-6">
+            {/* Bold saffron hero block */}
+            <View className="mt-4 h-72 items-center justify-center rounded-2xl bg-saffron-600/15">
+              <item.Icon size={96} color={colors.saffron[600]} strokeWidth={1.5} />
             </View>
-            <Text className="text-center text-display-md text-ink-900">{item.heading}</Text>
-            <Text className="mt-4 text-center text-body-lg text-ink-700">{item.body}</Text>
+            <Text className="mt-10 text-display-lg font-extrabold text-ink-900">{item.heading}</Text>
+            <Text className="mt-4 text-body-lg text-ink-700">{item.body}</Text>
           </View>
         )}
       />
 
-      <View className="px-4 pb-2">
-        <View className="mb-6 flex-row justify-center gap-2">
+      <View className="px-6 pb-2">
+        <View className="mb-6 flex-row gap-2">
           {PAGES.map((p, i) => (
             <View
               key={p.key}
-              className={`h-2 rounded-full ${i === index ? 'w-6 bg-saffron-600' : 'w-2 bg-ink-400'}`}
+              className={`h-1.5 rounded-full ${i === index ? 'w-8 bg-saffron-600' : 'w-1.5 bg-ink-400'}`}
             />
           ))}
         </View>
-        <Button label={isLast ? "Let's go" : 'Next'} onPress={goNext} />
+        <Button label={isLast ? "Let's go" : 'Next'} size="lg" onPress={goNext} />
       </View>
     </SafeAreaView>
   );
