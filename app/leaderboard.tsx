@@ -1,9 +1,11 @@
-// Leaderboard tab — INTVL "Club/Member Leaderboard" layout (screens 06/07), saffron.
-// Header + scope sub-toggles + your-rank card + ranked rows.
-// DESIGN PREVIEW: realistic mock standings so the layout reads true; live data is Phase 7.
+// Leaderboard — INTVL "Club/Member Leaderboard" layout (06/07), saffron. Now a
+// pushed route reached from Play (INTVL shows it in Play's "My Club" sheet).
+// DESIGN PREVIEW: realistic mock standings; live data is Phase 7.
 import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { IconChevronLeft } from '@/components/ui/Icon';
+import { useRouter } from 'expo-router';
 
 import { Avatar, Badge, Card, SubToggle } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -62,6 +64,7 @@ function RankRow({ row }: { row: Row }) {
 }
 
 export default function LeaderboardScreen() {
+  const router = useRouter();
   const { user } = useCurrentUser();
   const [scope, setScope] = useState('Pincode');
   const [timeframe, setTimeframe] = useState('Month');
@@ -70,7 +73,10 @@ export default function LeaderboardScreen() {
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
-        <Text className="mb-4 mt-2 text-display-sm text-ink-900">Leaderboard</Text>
+        <View className="mb-4 mt-2 flex-row items-center">
+          <IconChevronLeft size={26} color={colors.ink[900]} onPress={() => router.back()} />
+          <Text className="ml-1 text-display-sm text-ink-900">Leaderboard</Text>
+        </View>
 
         <SubToggle options={['Pincode', 'City', 'Friends']} value={scope} onChange={setScope} />
         <View className="mt-3">

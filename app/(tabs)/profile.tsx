@@ -15,6 +15,7 @@ import {
   IconPalette,
   IconSettings,
   IconUserPlus,
+  IconUsers,
   IconWalk,
 } from '@/components/ui/Icon';
 
@@ -128,8 +129,13 @@ export default function ProfileScreen() {
           />
         </Card>
 
-        {/* Medals entry (design spec §6.11 → §6.14). */}
-        <View className="mt-6 overflow-hidden rounded-md bg-ink-200">
+        {/* Friends + Medals (INTVL keeps these under Me). */}
+        <View className="mt-6 divide-y divide-ink-400 overflow-hidden rounded-md bg-ink-200">
+          <Pressable className="flex-row items-center px-4 py-3" onPress={() => router.push('/friends' as Href)}>
+            <IconUsers size={22} color={colors.ink[700]} />
+            <Text className="ml-3 flex-1 text-body-lg text-ink-900">Friends</Text>
+            <IconChevronRight size={20} color={colors.ink[600]} />
+          </Pressable>
           <Pressable className="flex-row items-center px-4 py-3" onPress={() => router.push('/medals' as Href)}>
             <IconMedal size={22} color={colors.ink[700]} />
             <Text className="ml-3 flex-1 text-body-lg text-ink-900">Medals</Text>

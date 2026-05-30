@@ -1,9 +1,9 @@
-// Bottom tab bar — 5 tabs: Map / Leaderboard / Friends / Feed / Profile.
-// (Sai's call to include Feed as a tab — overrides design-spec §4.1's 4-tab plan,
-// patch #31.) Map uses the custom hex icon; rest use MaterialCommunityIcons. Saffron
-// active tint, ink-700 inactive. Labels shortened to fit 5 tabs on narrow phones.
+// Bottom tab bar — INTVL's 4 tabs: Play · Me · Feed · Start (Sai's call, patch #31
+// updated). Play = the map, Me = profile, Feed = social feed, Start = begin a walk.
+// Leaderboard + Friends are pushed screens reached from Play/Me (as INTVL organises them).
+// Play uses the custom hex icon; rest use MaterialCommunityIcons. Saffron active tint.
 import { Tabs } from 'expo-router';
-import { IconLayoutGrid, IconTrophy, IconUser, IconUsers } from '@/components/ui/Icon';
+import { IconLayoutGrid, IconUser, IconWalk } from '@/components/ui/Icon';
 
 import { HexIcon } from '@/components/shared/HexIcon';
 import { colors } from '@/theme';
@@ -17,10 +17,9 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.ink[700],
         tabBarStyle: {
           backgroundColor: colors.ink[100],
-          borderTopColor: 'rgba(61,61,61,0.5)', // ink.400 @ 50% (design spec §3.9)
+          borderTopColor: 'rgba(61,61,61,0.5)',
           borderTopWidth: 1,
         },
-        // 11px + allow-font-scaling off so 5 labels fit on small Android widths.
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
         tabBarAllowFontScaling: false,
       }}
@@ -28,22 +27,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Map',
+          title: 'Play',
           tabBarIcon: ({ color, focused }) => <HexIcon size={24} color={color} filled={focused} />,
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="profile"
         options={{
-          title: 'Ranks',
-          tabBarIcon: ({ color }) => <IconTrophy size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="friends"
-        options={{
-          title: 'Friends',
-          tabBarIcon: ({ color }) => <IconUsers size={24} color={color} />,
+          title: 'Me',
+          tabBarIcon: ({ color }) => <IconUser size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -54,10 +46,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="start"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <IconUser size={24} color={color} />,
+          title: 'Start',
+          tabBarIcon: ({ color }) => <IconWalk size={24} color={color} />,
         }}
       />
     </Tabs>

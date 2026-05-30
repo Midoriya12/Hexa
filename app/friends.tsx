@@ -1,8 +1,10 @@
-// Friends tab — INTVL 21 "Following" layout (search + requests + friend rows), saffron.
+// Friends — INTVL 21 "Following" layout (search + requests + friend rows), saffron.
+// Now a pushed route reached from Me (INTVL keeps friends/following under Me).
 // DESIGN PREVIEW: mock friends/requests; live data is Phase 7.
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconSearch, IconUserPlus } from '@/components/ui/Icon';
+import { IconChevronLeft, IconSearch, IconUserPlus } from '@/components/ui/Icon';
+import { useRouter } from 'expo-router';
 
 import { Avatar, Badge, Button, Card } from '@/components/ui';
 import { colors } from '@/theme';
@@ -17,12 +19,16 @@ const FRIENDS = [
 ];
 
 export default function FriendsScreen() {
+  const router = useRouter();
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
         <View className="mb-4 mt-2 flex-row items-center justify-between">
-          <Text className="text-display-sm text-ink-900">Friends</Text>
-          <IconUserPlus size={26} color={colors.saffron[600]} strokeWidth={1.75} />
+          <View className="flex-row items-center">
+            <IconChevronLeft size={26} color={colors.ink[900]} onPress={() => router.back()} />
+            <Text className="ml-1 text-display-sm text-ink-900">Friends</Text>
+          </View>
+          <IconUserPlus size={26} color={colors.saffron[600]} />
         </View>
 
         {/* Search */}
