@@ -4,6 +4,7 @@
 // challenges. Live XP/challenge wiring is Phase 5; this is the visual target.
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, type Href } from 'expo-router';
 import {
   IconCamera,
   IconChevronRight,
@@ -11,6 +12,7 @@ import {
   IconCrown,
   IconGift,
   IconPalette,
+  IconSettings,
   IconUserPlus,
   IconWalk,
 } from '@tabler/icons-react-native';
@@ -32,6 +34,7 @@ const CHALLENGES = [
 ] as const;
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user } = useCurrentUser();
   const signOut = useUserStore((s) => s.signOut);
   const level = user?.level ?? 1;
@@ -46,7 +49,15 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
-        <Text className="mb-4 mt-2 text-display-sm text-ink-900">Profile</Text>
+        <View className="mb-4 mt-2 flex-row items-center justify-between">
+          <Text className="text-display-sm text-ink-900">Profile</Text>
+          <IconSettings
+            size={26}
+            color={colors.ink[700]}
+            strokeWidth={1.75}
+            onPress={() => router.push('/settings' as Href)}
+          />
+        </View>
 
         {/* Hero card: identity + level + XP-to-next-level bar */}
         <Card contentHeavy>
