@@ -54,3 +54,7 @@ export const IconUsers = make('account-group');
 export const IconWalk = make('walk');
 export const IconWatch = make('watch');
 export const IconNews = make('newspaper-variant-outline');
+export const IconEye = make('eye-outline');
+export const IconTarget = make('crosshairs-gps');
+export const IconStack = make('layers-outline');
+export const IconChevronDown = make('chevron-down');
