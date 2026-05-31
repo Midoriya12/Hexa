@@ -1,9 +1,9 @@
 // Play — INTVL Play layout. Full-bleed live map with a persistent swipe-up sheet whose
-// COLLAPSED peek shows only the summary (clan: name · members · hexes held / solo: you ·
-// area · hexes held). Leaderboard/Territories/History live BELOW and are reached by swiping
-// up, so the peek stays small and the map stays visible. Solo vs Clan switches the summary
-// (and, once captures exist, which hexes the map highlights). Percentage snaps adapt to all
-// device sizes.
+// COLLAPSED peek shows ONLY the summary (no half-cut tabs): the peek height is measured from
+// the summary so it fits exactly on every device. Clan summary mirrors INTVL's "My Club"
+// header (identity + two metric columns: hexes held · members); Solo shows you + your hexes.
+// Leaderboard/Territories/History live below, reached by swiping up. Solo vs Clan switches the
+// summary (and, once captures exist, which hexes the map highlights — patch #34).
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,32 +38,50 @@ function ControlButton({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Compact one-row summary shown in the collapsed peek. */
-function SummaryRow({
+function Metric({ value, label }: { value: string; label: string }) {
+  return (
+    <View className="items-end">
+      <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-md text-saffron-600">
+        {value}
+      </Text>
+      <Text numberOfLines={1} className="text-label-sm uppercase text-ink-600">
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/** Compact summary shown in the collapsed peek: a small centred title, then a single row of
+ *  identity (avatar + name + sub) and 1–2 metric columns. Used for both Clan and Solo. */
+function SheetSummary({
+  title,
   name,
   sub,
-  hexes,
+  metrics,
 }: {
+  title: string;
   name: string;
   sub: string;
-  hexes: number;
+  metrics: { value: string; label: string }[];
 }) {
   return (
-    <View className="flex-row items-center">
-      <Avatar size={40} name={name} />
-      <View className="ml-3 flex-1">
-        <Text numberOfLines={1} className="text-heading-sm text-ink-900">
-          {name}
-        </Text>
-        <Text numberOfLines={1} className="text-body-sm text-ink-700">
-          {sub}
-        </Text>
-      </View>
-      <View className="items-end">
-        <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-lg text-saffron-600">
-          {hexes.toLocaleString('en-IN')}
-        </Text>
-        <Text className="text-label-sm uppercase text-ink-600">Hexes held</Text>
+    <View>
+      <Text className="text-center text-label-md uppercase tracking-wide text-ink-600">{title}</Text>
+      <View className="mt-2 flex-row items-center">
+        <Avatar size={40} name={name} />
+        <View className="ml-3 flex-shrink">
+          <Text numberOfLines={1} className="text-heading-sm text-ink-900">
+            {name}
+          </Text>
+          <Text numberOfLines={1} className="text-body-sm text-ink-700">
+            {sub}
+          </Text>
+        </View>
+        <View className="ml-auto flex-row items-center gap-5 pl-3">
+          {metrics.map((m) => (
+            <Metric key={m.label} value={m.value} label={m.label} />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -75,8 +93,11 @@ export default function PlayScreen() {
   const [mode, setMode] = useState('Clan');
   const [tab, setTab] = useState('Leaderboard');
   const sheetRef = useRef<BottomSheet>(null);
-  // Peek = summary only (small). Mid/full reveal the tabs + content. % snaps scale per device.
-  const snapPoints = useMemo(() => ['18%', '55%', '92%'], []);
+
+  // Peek snap is measured from the summary so ONLY the summary shows (no half-cut tabs); the
+  // two higher snaps reveal the tabs + content. % snaps adapt to all device sizes.
+  const [peekH, setPeekH] = useState(150);
+  const snapPoints = useMemo(() => [peekH, '55%', '92%'], [peekH]);
 
   const isClan = mode === 'Clan';
   const myName = user?.display_name || user?.username || 'You';
@@ -143,20 +164,30 @@ export default function PlayScreen() {
         handleIndicatorStyle={{ backgroundColor: colors.ink[500], width: 40 }}
       >
         <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 40 }}>
-          {/* Summary (always visible in the peek) */}
-          {isClan ? (
-            <SummaryRow name={CLAN.name} sub={`${CLAN.members} / ${CLAN_MEMBER_CAP} members`} hexes={CLAN.hexes} />
-          ) : (
-            <SummaryRow name={myName} sub={myArea} hexes={myHexes} />
-          )}
-
-          {/* Hint that there's more below (only meaningful in the peek) */}
-          <View className="mt-3 mb-1 items-center">
-            <Text className="text-label-sm uppercase tracking-wide text-ink-500">Swipe up for standings</Text>
+          {/* Summary — its measured height sets the peek snap so nothing below peeks through. */}
+          <View onLayout={(e) => setPeekH(Math.round(e.nativeEvent.layout.height) + 46)}>
+            {isClan ? (
+              <SheetSummary
+                title="My Clan"
+                name={CLAN.name}
+                sub={`${CLAN.members} / ${CLAN_MEMBER_CAP} members`}
+                metrics={[
+                  { value: CLAN.hexes.toLocaleString('en-IN'), label: 'Hexes held' },
+                  { value: `${CLAN.members}/${CLAN_MEMBER_CAP}`, label: 'Members' },
+                ]}
+              />
+            ) : (
+              <SheetSummary
+                title="Solo"
+                name={myName}
+                sub={myArea}
+                metrics={[{ value: myHexes.toLocaleString('en-IN'), label: 'Hexes held' }]}
+              />
+            )}
           </View>
 
           {/* Underline tabs (revealed on swipe up) */}
-          <View className="mt-2 flex-row border-b border-ink-400">
+          <View className="mt-5 flex-row border-b border-ink-400">
             {SHEET_TABS.map((t) => {
               const active = t === tab;
               return (

@@ -2,7 +2,7 @@
 // Start sheets. NOTE: requires the native Mapbox build; only import this into screens
 // AFTER the dev client is rebuilt with @rnmapbox/maps, or the app will crash.
 // Hex/zone overlays come in Phase 2/3 once hexes are generated.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource } from '@rnmapbox/maps';
@@ -22,12 +22,21 @@ interface HexMapProps {
   zoomLevel?: number;
 }
 
-export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
+// Daytime → bright Light style; night → Dark, so the map (and globe) is pretty in daylight
+// and easy on the eyes at night. Fixed local-hour window (refine to real sunrise/sunset later).
+function dayNightStyle(): string {
+  const h = new Date().getHours();
+  const isDay = h >= 6 && h < 18;
+  return isDay ? Mapbox.StyleURL.Light : Mapbox.StyleURL.Dark;
+}
+
+export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
   // Mapbox GL contends for a single drawing surface across MapView instances; with the
   // tab navigator keeping screens mounted, two live maps (Play + Start) leaves one blank.
   // Mount the map only while its screen is focused so exactly one surface is ever live.
   const isFocused = useIsFocused();
   const [hexes, setHexes] = useState<HexCollection | null>(null);
+  const styleURL = useMemo(() => dayNightStyle(), []);
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +53,7 @@ export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
   return (
     <MapView
       style={style ?? StyleSheet.absoluteFill}
-      styleURL={Mapbox.StyleURL.Dark}
+      styleURL={styleURL}
       projection="globe"
       scaleBarEnabled={false}
       logoEnabled={false}
@@ -57,45 +66,38 @@ export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
         maxZoomLevel={19}
       />
 
-      {/* Playable hex grid. One source + fill + outline, coloured per-feature by ownership.
-          Unowned = no fill + faint outline (reads as a grid); yours = saffron; others = grey
-          (their clan colour comes in Step C). Layers gated to street zoom for performance. */}
+      {/* Hex rendering, INTVL-style: OWNED hexes are territory and show at every zoom; the
+          UNOWNED grid only appears once you zoom into your area (minZoom 13), so the city
+          view stays clean instead of a honeycomb mesh. One source, layers split by `owner`. */}
       {hexes ? (
         <ShapeSource id="hexSource" shape={hexes} tolerance={0.5}>
+          {/* Owned territory — fill + outline, all zooms */}
           <FillLayer
-            id="hexFill"
-            minZoomLevel={9}
+            id="hexFillOwned"
+            filter={['!=', ['get', 'owner'], 'none']}
             style={{
-              fillColor: [
-                'match',
-                ['get', 'owner'],
-                'you', '#FF6F00',
-                'other', '#888888',
-                'rgba(0,0,0,0)',
-              ],
-              fillOpacity: ['match', ['get', 'owner'], 'you', 0.55, 'other', 0.4, 0],
+              fillColor: ['match', ['get', 'owner'], 'you', '#FF6F00', 'other', '#888888', '#888888'],
+              fillOpacity: ['match', ['get', 'owner'], 'you', 0.55, 0.4],
               fillAntialias: true,
             }}
           />
           <LineLayer
-            id="hexOutline"
-            minZoomLevel={9}
+            id="hexLineOwned"
+            filter={['!=', ['get', 'owner'], 'none']}
             style={{
-              lineColor: [
-                'match',
-                ['get', 'owner'],
-                'you', '#FF6F00',
-                'other', '#CFCFCF',
-                'rgba(255,140,0,0.85)', // unowned: brighter saffron so the grid reads clearly
-              ],
-              // Thicker, and scale up as you zoom in so hexes stay crisp.
-              lineWidth: [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                11, ['match', ['get', 'owner'], 'none', 1.4, 2.0],
-                16, ['match', ['get', 'owner'], 'none', 2.4, 3.2],
-              ],
+              lineColor: ['match', ['get', 'owner'], 'you', '#FF6F00', 'other', '#CFCFCF', '#CFCFCF'],
+              lineWidth: ['interpolate', ['linear'], ['zoom'], 11, 2.0, 16, 3.2],
+              lineJoin: 'round',
+            }}
+          />
+          {/* Unowned grid — outline only, and ONLY when zoomed in (no city-wide clutter) */}
+          <LineLayer
+            id="hexLineUnowned"
+            filter={['==', ['get', 'owner'], 'none']}
+            minZoomLevel={13}
+            style={{
+              lineColor: 'rgba(255,140,0,0.85)',
+              lineWidth: ['interpolate', ['linear'], ['zoom'], 13, 1.4, 17, 2.8],
               lineJoin: 'round',
             }}
           />
