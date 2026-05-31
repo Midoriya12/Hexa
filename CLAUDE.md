@@ -299,6 +299,12 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 
 40. **[PATCHED] Caps relaxed — light guardrails, not free-for-all.** Decision (Sai, 2026-05-31). Overrides spec caps (soft 50 held → PPH stops, hard 200 held → "Empire too large", 800 pts/day). New: **remove the daily point cap**, **remove the 200 held-hex hard cap**, and **raise the PPH soft-cap way up (~500 held hexes)** so hardcore players almost never hit a wall — but a couple of minimal guardrails remain so anti-cheat/balance isn't wide open (vs the rejected "remove everything" option). NOT YET IMPLEMENTED — applies to the scoring/PPH logic in Step B/C (Phases 4–5). Anti-cheat (Phase 8) is the real anti-farming defence, not caps.
 
+41. **[PATCHED] Capture UX = auto-on-dwell; Find-nearest-hex helper; no turn-by-turn.** Decisions (Sai, 2026-05-31). (a) **Auto-capture** stays — staying in the hex for the dwell fires the capture itself; no manual button (spec model). (b) Added the spec's **"Find nearest hex"** control (Play crosshair → camera flies to the closest unowned hex; `HexMap.flyToNearestHex`). (c) **No turn-by-turn navigation** — the spec doesn't include it and Sai confirmed; players navigate visually via the map + location puck. (d) Field-test **preview/standalone build deferred** — testing on wifi (dev build) for now.
+
+    **Step B (capture) scope built vs deferred — so it's clear what's real:** BUILT = server point-in-polygon (true cell), GPS ≤25m gate, level-scaled in-zone dwell, auto-capture writing to the live DB, ownership flip on the map, flat **IP=100**, `current_held_hexes`/`current_round_points` update, 60s anti-spam, location puck + follow, find-nearest-hex. DEFERRED = rarity-based IP/PPH (flat now), the **hourly PPH/rent engine** (scheduled job, Phase 5), **RP-vs-LP split**, steal ×1.3 / 30-min Fresh-Paint / 15-min Block / Assist completion-bonus / 23h Revisit (Phase 5), accelerometer + speed checks (Phase 8), levels/Safe-Points (Phase 5), decay (Phase 10), celebration/haptics/sound + push-to-previous-owner.
+
+    **OPEN UI GAP (not in spec):** there is no defined screen for a player's **total PPH/rent income** or a prominent **Round-Points** display. `current_round_points` is stored but not surfaced. Decide placement (Me header / Play "Territories" tab / a stats card) when building Step C/D.
+
 ---
 
 **[NEW IN v3 SPEC]** — patches below this line specifically correct the v3 design spec (delivered 2026-05-29). _None yet._
