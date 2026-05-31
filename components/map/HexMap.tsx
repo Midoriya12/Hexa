@@ -7,9 +7,20 @@
 //
 // Hex rendering (INTVL territory model): OWNED hexes show as coloured territory at all zooms;
 // the UNOWNED grid shows outline-only from zoom 12 so the city/globe view stays clean.
-import { Component, useEffect, useMemo, type ReactNode } from 'react';
+import {
+  Component,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
+import * as Location from 'expo-location';
 import Mapbox, {
   Camera,
   FillLayer,
@@ -62,7 +73,15 @@ interface HexMapProps {
   followUser?: boolean;
 }
 
-export function HexMap({ style, zoomLevel = 14, followUser = false }: HexMapProps) {
+export interface HexMapHandle {
+  /** Fly the camera to the nearest unowned hex (Play's "find nearest hex" control). */
+  flyToNearestHex: () => void;
+}
+
+export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
+  { style, zoomLevel = 14, followUser = false },
+  ref,
+) {
   // Mapbox GL contends for a single drawing surface across MapView instances; with the tab
   // navigator keeping screens mounted, two live maps (Play + Start) leaves one blank. Mount
   // the map only while its screen is focused so exactly one surface is ever live.
@@ -71,12 +90,46 @@ export function HexMap({ style, zoomLevel = 14, followUser = false }: HexMapProp
   const loadHexes = useHexStore((s) => s.load);
   const { user } = useCurrentUser();
   const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
+  const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
 
   // Load the grid + ownership once into the shared store (no-op if already loaded). Captures
   // update the store, so both the Play and Start maps recolour instantly.
   useEffect(() => {
     void loadHexes(user?.id ?? null);
   }, [loadHexes, user?.id]);
+
+  // "Find nearest hex": fly to the closest UNOWNED hex to the user (or launch-area centre if
+  // location is unavailable). No turn-by-turn — just a camera move (spec line 1480).
+  const flyToNearestHex = useCallback(async () => {
+    const current = useHexStore.getState().fc;
+    if (!current) return;
+    let from: [number, number] = HSR_CENTER;
+    try {
+      let granted = (await Location.getForegroundPermissionsAsync()).granted;
+      if (!granted) granted = (await Location.requestForegroundPermissionsAsync()).granted;
+      if (granted) {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        from = [loc.coords.longitude, loc.coords.latitude];
+      }
+    } catch {
+      /* fall back to the launch-area centre */
+    }
+    let best: [number, number] | null = null;
+    let bestD = Infinity;
+    for (const f of current.features) {
+      if (f.properties.owner !== 'none') continue;
+      const dx = f.properties.clng - from[0];
+      const dy = f.properties.clat - from[1];
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = [f.properties.clng, f.properties.clat];
+      }
+    }
+    if (best) cameraRef.current?.setCamera({ centerCoordinate: best, zoomLevel: 16, animationDuration: 800 });
+  }, []);
+
+  useImperativeHandle(ref, () => ({ flyToNearestHex }), [flyToNearestHex]);
 
   if (!isFocused) return null;
 
@@ -98,6 +151,7 @@ export function HexMap({ style, zoomLevel = 14, followUser = false }: HexMapProp
           <Camera followUserLocation followZoomLevel={zoomLevel} minZoomLevel={0.5} maxZoomLevel={19} />
         ) : (
           <Camera
+            ref={cameraRef}
             defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
             minZoomLevel={0.5}
             maxZoomLevel={19}
@@ -144,6 +198,6 @@ export function HexMap({ style, zoomLevel = 14, followUser = false }: HexMapProp
       </MapView>
     </MapErrorBoundary>
   );
-}
+});
 
 export default HexMap;

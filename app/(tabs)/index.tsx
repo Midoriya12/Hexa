@@ -11,7 +11,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/components/ui/Icon';
 
 import { Avatar } from '@/components/ui';
-import { HexMap } from '@/components/map/HexMap';
+import { HexMap, type HexMapHandle } from '@/components/map/HexMap';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { colors } from '@/theme';
@@ -30,11 +30,14 @@ const MEMBERS = [
 const SHEET_TABS = ['Leaderboard', 'Territories', 'History'];
 const MODES = ['Solo', 'Clan'];
 
-function ControlButton({ children }: { children: React.ReactNode }) {
+function ControlButton({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) {
   return (
-    <View className="mb-3 h-11 w-11 items-center justify-center rounded-full border border-ink-400 bg-ink-100">
+    <Pressable
+      onPress={onPress}
+      className="mb-3 h-11 w-11 items-center justify-center rounded-full border border-ink-400 bg-ink-100"
+    >
       {children}
-    </View>
+    </Pressable>
   );
 }
 
@@ -93,6 +96,7 @@ export default function PlayScreen() {
   const [mode, setMode] = useState('Clan');
   const [tab, setTab] = useState('Leaderboard');
   const sheetRef = useRef<BottomSheet>(null);
+  const mapRef = useRef<HexMapHandle>(null);
 
   // Peek snap is measured from the summary so ONLY the summary shows (no half-cut tabs); the
   // two higher snaps reveal the tabs + content. % snaps adapt to all device sizes.
@@ -107,7 +111,7 @@ export default function PlayScreen() {
   return (
     <View className="flex-1 bg-ink-50">
       {/* ── Live map (globe + zoom), full-bleed behind everything ── */}
-      <HexMap />
+      <HexMap ref={mapRef} />
 
       {/* ── Top mode bar (full width, neutral) ── */}
       <View style={{ paddingTop: insets.top + 8 }} className="px-4">
@@ -146,7 +150,7 @@ export default function PlayScreen() {
         <ControlButton>
           <IconEye size={20} color={colors.saffron[600]} />
         </ControlButton>
-        <ControlButton>
+        <ControlButton onPress={() => mapRef.current?.flyToNearestHex()}>
           <IconTarget size={20} color={colors.ink[900]} />
         </ControlButton>
         <ControlButton>

@@ -10,6 +10,8 @@ export interface HexFeatureProps {
   h3: string;
   owner: 'none' | 'you' | 'other';
   pincode: string | null;
+  clat: number; // cell centre (for "find nearest hex")
+  clng: number;
 }
 
 export type HexCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon, HexFeatureProps>;
@@ -33,7 +35,7 @@ function insetPolygon(poly: GeoJSON.Polygon, scale: number): GeoJSON.Polygon {
  *  `myId` lets us mark the caller's own hexes as 'you' (saffron) vs 'other'. */
 export async function fetchHexes(myId: string | null): Promise<HexCollection> {
   const [hexRes, ownRes] = await Promise.all([
-    supabase.from('hexes').select('h3_index, boundary, pincode').eq('is_active', true),
+    supabase.from('hexes').select('h3_index, boundary, pincode, center_lat, center_lng').eq('is_active', true),
     supabase.from('hex_ownership').select('h3_index, owner_id'),
   ]);
   if (hexRes.error) throw hexRes.error;
@@ -42,13 +44,14 @@ export async function fetchHexes(myId: string | null): Promise<HexCollection> {
   const ownerById = new Map<string, string>();
   for (const o of ownRes.data ?? []) ownerById.set(o.h3_index, o.owner_id);
 
-  const features = (hexRes.data ?? []).map((h: Pick<HexRow, 'h3_index' | 'boundary' | 'pincode'>) => {
+  type Row = Pick<HexRow, 'h3_index' | 'boundary' | 'pincode' | 'center_lat' | 'center_lng'>;
+  const features = (hexRes.data ?? []).map((h: Row) => {
     const ownerId = ownerById.get(h.h3_index);
     const owner: HexFeatureProps['owner'] = !ownerId ? 'none' : ownerId === myId ? 'you' : 'other';
     return {
       type: 'Feature' as const,
       geometry: insetPolygon(h.boundary as unknown as GeoJSON.Polygon, DISPLAY_SCALE),
-      properties: { h3: h.h3_index, owner, pincode: h.pincode },
+      properties: { h3: h.h3_index, owner, pincode: h.pincode, clat: h.center_lat, clng: h.center_lng },
     };
   });
 
