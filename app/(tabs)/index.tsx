@@ -1,7 +1,9 @@
-// Play — INTVL Play layout, cleaned up + responsive. Full-width mode bar, separate
-// floating bell + My-captures chip (left), tidy control stack (right, anchored to safe
-// insets so it's correct on every device), and a persistent swipe-up "My Clan" sheet
-// (Leaderboard/Territories/History) over the map. Map is a placeholder until Mapbox.
+// Play — INTVL Play layout. Full-bleed live map with a persistent swipe-up sheet whose
+// COLLAPSED peek shows only the summary (clan: name · members · hexes held / solo: you ·
+// area · hexes held). Leaderboard/Territories/History live BELOW and are reached by swiping
+// up, so the peek stays small and the map stays visible. Solo vs Clan switches the summary
+// (and, once captures exist, which hexes the map highlights). Percentage snaps adapt to all
+// device sizes.
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,13 +38,50 @@ function ControlButton({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Compact one-row summary shown in the collapsed peek. */
+function SummaryRow({
+  name,
+  sub,
+  hexes,
+}: {
+  name: string;
+  sub: string;
+  hexes: number;
+}) {
+  return (
+    <View className="flex-row items-center">
+      <Avatar size={40} name={name} />
+      <View className="ml-3 flex-1">
+        <Text numberOfLines={1} className="text-heading-sm text-ink-900">
+          {name}
+        </Text>
+        <Text numberOfLines={1} className="text-body-sm text-ink-700">
+          {sub}
+        </Text>
+      </View>
+      <View className="items-end">
+        <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-lg text-saffron-600">
+          {hexes.toLocaleString('en-IN')}
+        </Text>
+        <Text className="text-label-sm uppercase text-ink-600">Hexes held</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function PlayScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useCurrentUser();
   const [mode, setMode] = useState('Clan');
   const [tab, setTab] = useState('Leaderboard');
   const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['32%', '60%', '92%'], []);
+  // Peek = summary only (small). Mid/full reveal the tabs + content. % snaps scale per device.
+  const snapPoints = useMemo(() => ['18%', '55%', '92%'], []);
+
+  const isClan = mode === 'Clan';
+  const myName = user?.display_name || user?.username || 'You';
+  const myArea = user?.home_neighbourhood || 'Bengaluru';
+  const myHexes = user?.current_held_hexes ?? 0;
 
   return (
     <View className="flex-1 bg-ink-50">
@@ -94,7 +133,7 @@ export default function PlayScreen() {
         </ControlButton>
       </View>
 
-      {/* ── Persistent "My Clan" sheet ── */}
+      {/* ── Persistent sheet: peek = summary only; swipe up for tabs + content ── */}
       <BottomSheet
         ref={sheetRef}
         index={0}
@@ -103,32 +142,29 @@ export default function PlayScreen() {
         backgroundStyle={{ backgroundColor: colors.ink[100] }}
         handleIndicatorStyle={{ backgroundColor: colors.ink[500], width: 40 }}
       >
-        <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40 }}>
-          {/* Clan summary */}
-          <View className="flex-row items-center">
-            <Avatar size={48} name={mode === 'Clan' ? CLAN.name : 'Bangalore'} />
-            <View className="ml-3 flex-1">
-              <Text className="text-heading-md text-ink-900">{mode === 'Clan' ? CLAN.name : 'Bangalore'}</Text>
-              <Text className="text-body-sm text-ink-700">
-                {mode === 'Clan' ? `${CLAN.members} / ${CLAN_MEMBER_CAP} members` : 'City standings'}
-              </Text>
-            </View>
-            <View className="items-end">
-              <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-lg text-saffron-600">
-                {CLAN.hexes.toLocaleString('en-IN')}
-              </Text>
-              <Text className="text-label-sm uppercase text-ink-600">Hexes held</Text>
-            </View>
+        <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 40 }}>
+          {/* Summary (always visible in the peek) */}
+          {isClan ? (
+            <SummaryRow name={CLAN.name} sub={`${CLAN.members} / ${CLAN_MEMBER_CAP} members`} hexes={CLAN.hexes} />
+          ) : (
+            <SummaryRow name={myName} sub={myArea} hexes={myHexes} />
+          )}
+
+          {/* Hint that there's more below (only meaningful in the peek) */}
+          <View className="mt-3 mb-1 items-center">
+            <Text className="text-label-sm uppercase tracking-wide text-ink-500">Swipe up for standings</Text>
           </View>
 
-          {/* Underline tabs */}
-          <View className="mt-5 flex-row border-b border-ink-400">
+          {/* Underline tabs (revealed on swipe up) */}
+          <View className="mt-2 flex-row border-b border-ink-400">
             {SHEET_TABS.map((t) => {
               const active = t === tab;
               return (
                 <Pressable key={t} onPress={() => setTab(t)} className="mr-6 pb-2">
                   <Text className={`text-heading-sm ${active ? 'text-ink-900' : 'text-ink-600'}`}>{t}</Text>
-                  {active ? <View className="absolute -bottom-px left-0 right-0 h-0.5 rounded-full bg-saffron-600" /> : null}
+                  {active ? (
+                    <View className="absolute -bottom-px left-0 right-0 h-0.5 rounded-full bg-saffron-600" />
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -137,38 +173,43 @@ export default function PlayScreen() {
           {/* Tab content */}
           <View className="mt-4">
             {tab === 'Leaderboard' ? (
-              MEMBERS.map((m) => {
-                const top3 = m.rank <= 3;
-                return (
-                  <View
-                    key={m.rank}
-                    className={`mb-2 flex-row items-center rounded-md px-3 py-3 ${m.you ? 'border border-saffron-600 bg-ink-200' : 'bg-ink-200'}`}
-                  >
-                    <Text
-                      style={{ fontVariant: ['tabular-nums'] }}
-                      className={`w-6 text-heading-sm ${top3 ? 'text-saffron-600' : 'text-ink-700'}`}
+              <>
+                <Text className="mb-3 text-label-sm uppercase tracking-wide text-ink-600">
+                  {isClan ? 'Clan members by hexes' : 'Players near you'}
+                </Text>
+                {MEMBERS.map((m) => {
+                  const top3 = m.rank <= 3;
+                  return (
+                    <View
+                      key={m.rank}
+                      className={`mb-2 flex-row items-center rounded-md px-3 py-3 ${m.you ? 'border border-saffron-600 bg-ink-200' : 'bg-ink-200'}`}
                     >
-                      {m.rank}
-                    </Text>
-                    <Avatar size={32} name={m.name} />
-                    <Text className="ml-3 flex-1 text-heading-sm text-ink-900">{m.name}</Text>
-                    <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">
-                      {m.hexes}
-                    </Text>
-                  </View>
-                );
-              })
+                      <Text
+                        style={{ fontVariant: ['tabular-nums'] }}
+                        className={`w-6 text-heading-sm ${top3 ? 'text-saffron-600' : 'text-ink-700'}`}
+                      >
+                        {m.rank}
+                      </Text>
+                      <Avatar size={32} name={m.name} />
+                      <Text className="ml-3 flex-1 text-heading-sm text-ink-900">{m.name}</Text>
+                      <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">
+                        {m.hexes}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </>
             ) : tab === 'Territories' ? (
               <View className="items-center py-12">
                 <HexIcon size={40} color={colors.ink[500]} />
                 <Text className="mt-3 text-center text-body-md text-ink-700">
-                  Clan-held hexes show here once the map is live.
+                  {isClan ? 'Clan-held hexes' : 'Your captured hexes'} appear here once you start capturing.
                 </Text>
               </View>
             ) : (
               <View className="items-center py-12">
                 <Text className="text-center text-body-md text-ink-700">
-                  Clan territory over time — chart lands in Phase 11.
+                  {isClan ? 'Clan capture history' : 'Your capture history'} — lands with Walk Sessions.
                 </Text>
               </View>
             )}

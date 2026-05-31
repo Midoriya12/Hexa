@@ -85,10 +85,17 @@ export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
                 'match',
                 ['get', 'owner'],
                 'you', '#FF6F00',
-                'other', '#AAAAAA',
-                'rgba(255,111,0,0.30)',
+                'other', '#CFCFCF',
+                'rgba(255,140,0,0.85)', // unowned: brighter saffron so the grid reads clearly
               ],
-              lineWidth: ['match', ['get', 'owner'], 'none', 0.75, 1.25],
+              // Thicker, and scale up as you zoom in so hexes stay crisp.
+              lineWidth: [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                11, ['match', ['get', 'owner'], 'none', 1.4, 2.0],
+                16, ['match', ['get', 'owner'], 'none', 2.4, 3.2],
+              ],
               lineJoin: 'round',
             }}
           />
