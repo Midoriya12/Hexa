@@ -65,6 +65,7 @@ export default function StartScreen() {
         ref={sheetRef}
         index={0}
         snapPoints={snapPoints}
+        enableDynamicSizing={false}
         enablePanDownToClose={false}
         backgroundStyle={{ backgroundColor: colors.ink[100] }}
         handleIndicatorStyle={{ backgroundColor: colors.ink[500], width: 40 }}

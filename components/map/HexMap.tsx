@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
-import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
+import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource } from '@rnmapbox/maps';
 
 import { fetchHexes, type HexCollection } from '@/lib/supabase/hexes';
 
@@ -22,14 +22,13 @@ interface HexMapProps {
   zoomLevel?: number;
 }
 
-// Mapbox Standard — the modern colourful 3D globe (blue oceans, green land, atmosphere).
-// Its `lightPreset` gives day/night: bright & scenic in daylight, dark at night.
-const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
-
-// Fixed local-hour window (refine to real sunrise/sunset later).
-function isDaytime(): boolean {
+// Day → Outdoors (colourful & scenic: green land, blue water); night → Dark. Both are
+// classic Mapbox styles (no StyleImport / Standard-style dependency), so they render
+// reliably on the current native build. Fixed local-hour window (real sunrise/sunset later).
+function dayNightStyle(): string {
   const h = new Date().getHours();
-  return h >= 6 && h < 18;
+  const isDay = h >= 6 && h < 18;
+  return isDay ? Mapbox.StyleURL.Outdoors : Mapbox.StyleURL.Dark;
 }
 
 export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
@@ -38,7 +37,7 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
   // Mount the map only while its screen is focused so exactly one surface is ever live.
   const isFocused = useIsFocused();
   const [hexes, setHexes] = useState<HexCollection | null>(null);
-  const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
+  const styleURL = useMemo(() => dayNightStyle(), []);
 
   useEffect(() => {
     let alive = true;
@@ -55,16 +54,13 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
   return (
     <MapView
       style={style ?? StyleSheet.absoluteFill}
-      styleURL={STANDARD_STYLE}
+      styleURL={styleURL}
       projection="globe"
       scaleBarEnabled={false}
       logoEnabled={false}
       attributionEnabled={false}
       compassEnabled={false}
     >
-      {/* Day/night lighting on the Standard basemap (bright & colourful by day, dark at night). */}
-      <StyleImport id="basemap" existing config={{ lightPreset }} />
-
       <Camera
         defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
         minZoomLevel={0.5}
