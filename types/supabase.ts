@@ -39,6 +39,112 @@ export type Database = {
   }
   public: {
     Tables: {
+      captures: {
+        Row: {
+          captured_at: string
+          h3_index: string
+          id: number
+          ip_awarded: number
+          prev_owner_id: string | null
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          h3_index: string
+          id?: never
+          ip_awarded: number
+          prev_owner_id?: string | null
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          h3_index?: string
+          id?: never
+          ip_awarded?: number
+          prev_owner_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captures_h3_index_fkey"
+            columns: ["h3_index"]
+            isOneToOne: false
+            referencedRelation: "hexes"
+            referencedColumns: ["h3_index"]
+          },
+          {
+            foreignKeyName: "captures_prev_owner_id_fkey"
+            columns: ["prev_owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captures_prev_owner_id_fkey"
+            columns: ["prev_owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captures_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "captures_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hex_ownership: {
+        Row: {
+          captured_at: string
+          h3_index: string
+          ip_value: number
+          owner_id: string
+        }
+        Insert: {
+          captured_at?: string
+          h3_index: string
+          ip_value?: number
+          owner_id: string
+        }
+        Update: {
+          captured_at?: string
+          h3_index?: string
+          ip_value?: number
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hex_ownership_h3_index_fkey"
+            columns: ["h3_index"]
+            isOneToOne: true
+            referencedRelation: "hexes"
+            referencedColumns: ["h3_index"]
+          },
+          {
+            foreignKeyName: "hex_ownership_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hex_ownership_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hexes: {
         Row: {
           boundary: Json
@@ -214,7 +320,14 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      capture_hex: {
+        Args: { p_h3: string; p_lat: number; p_lng: number }
+        Returns: Json
+      }
+      hexa_point_in_hex: {
+        Args: { p_boundary: Json; p_lat: number; p_lng: number }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

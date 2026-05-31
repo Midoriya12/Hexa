@@ -1,12 +1,11 @@
-// Hex grid reads. The playable grid is static seeded data (scripts/generate-hexes.mjs),
-// so we fetch it once and cache the resulting GeoJSON for the app session — both the Play
-// and Start maps share this single fetch.
+// Hex grid reads. The playable grid is static (scripts/generate-hexes.mjs); ownership is
+// dynamic (hex_ownership, written only by the capture_hex RPC). We fetch both and tag each
+// hex feature with `owner` ('you' | 'other' | 'none') so the map can colour territory.
 import { supabase } from './client';
 import type { HexRow } from '@/types/database';
 
-/** Per-feature properties carried on each hex polygon. `owner` drives the fill/outline
- *  colour expression on the map; for now every hex is unowned ('none'). Ownership is wired
- *  in Step B (capture). `h3` is promoted to the Mapbox feature id for feature-state later. */
+/** Per-feature properties on each hex polygon. `owner` drives the fill/outline colour on the
+ *  map; `h3` is the cell id used for capture + feature-state. */
 export interface HexFeatureProps {
   h3: string;
   owner: 'none' | 'you' | 'other';
@@ -15,11 +14,8 @@ export interface HexFeatureProps {
 
 export type HexCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon, HexFeatureProps>;
 
-let cache: Promise<HexCollection> | null = null;
-
 // Cosmetic gap: draw each hex shrunk toward its centroid so cells read as DISTINCT spaced
-// hexagons instead of a continuous H3 tessellation (which shares edges and looks like a mesh).
-// Purely visual — the true full cell is what gets captured, so the gaps aren't dead space.
+// hexagons instead of a continuous tessellation. Cosmetic only — capture uses the full cell.
 const DISPLAY_SCALE = 0.88;
 
 function insetPolygon(poly: GeoJSON.Polygon, scale: number): GeoJSON.Polygon {
@@ -33,25 +29,28 @@ function insetPolygon(poly: GeoJSON.Polygon, scale: number): GeoJSON.Polygon {
   return { type: 'Polygon', coordinates: [shrunk] };
 }
 
-async function load(): Promise<HexCollection> {
-  const { data, error } = await supabase
-    .from('hexes')
-    .select('h3_index, boundary, pincode')
-    .eq('is_active', true);
-  if (error) throw error;
+/** Fetch the playable hex grid + current ownership as a GeoJSON FeatureCollection.
+ *  `myId` lets us mark the caller's own hexes as 'you' (saffron) vs 'other'. */
+export async function fetchHexes(myId: string | null): Promise<HexCollection> {
+  const [hexRes, ownRes] = await Promise.all([
+    supabase.from('hexes').select('h3_index, boundary, pincode').eq('is_active', true),
+    supabase.from('hex_ownership').select('h3_index, owner_id'),
+  ]);
+  if (hexRes.error) throw hexRes.error;
+  if (ownRes.error) throw ownRes.error;
 
-  const features = (data ?? []).map((h: Pick<HexRow, 'h3_index' | 'boundary' | 'pincode'>) => ({
-    type: 'Feature' as const,
-    // boundary is stored as a GeoJSON Polygon ({ type, coordinates:[[ [lng,lat]… ]] }); inset for display.
-    geometry: insetPolygon(h.boundary as unknown as GeoJSON.Polygon, DISPLAY_SCALE),
-    properties: { h3: h.h3_index, owner: 'none' as const, pincode: h.pincode },
-  }));
+  const ownerById = new Map<string, string>();
+  for (const o of ownRes.data ?? []) ownerById.set(o.h3_index, o.owner_id);
+
+  const features = (hexRes.data ?? []).map((h: Pick<HexRow, 'h3_index' | 'boundary' | 'pincode'>) => {
+    const ownerId = ownerById.get(h.h3_index);
+    const owner: HexFeatureProps['owner'] = !ownerId ? 'none' : ownerId === myId ? 'you' : 'other';
+    return {
+      type: 'Feature' as const,
+      geometry: insetPolygon(h.boundary as unknown as GeoJSON.Polygon, DISPLAY_SCALE),
+      properties: { h3: h.h3_index, owner, pincode: h.pincode },
+    };
+  });
 
   return { type: 'FeatureCollection', features };
-}
-
-/** Fetch the playable hex grid as a GeoJSON FeatureCollection (cached for the session). */
-export function fetchHexes(force = false): Promise<HexCollection> {
-  if (!cache || force) cache = load();
-  return cache;
 }

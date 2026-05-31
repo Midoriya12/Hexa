@@ -1,10 +1,9 @@
-// Start — INTVL 25 "active walk" layout, adapted to Hexa. Full-bleed map (placeholder
-// until Mapbox; HexMap swaps in after the native build) with floating controls and a
-// persistent swipe-up stats sheet (Duration / Distance / Hexes / Avg pace) carrying the
-// Start / Pause / Finish controls. Dark (Sai's theme: only Me/Settings are light).
-// Live tracking is the Walk Session feature (Phase 10); stats are zeroed for now.
-import { useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+// Start — the active-walk screen. Full-bleed map + a persistent stats sheet. Pressing Start
+// Walk begins the live capture loop (useHexTracker): your GPS is watched, the hex you're in is
+// detected, a level-scaled dwell runs, and the hex auto-captures + flips saffron on the map.
+// Duration + Hexes are live; richer route/distance stats come with full Walk Sessions (Phase 10).
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 
@@ -12,6 +11,7 @@ import { Button } from '@/components/ui';
 import { HexMap } from '@/components/map/HexMap';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { IconStack, IconTarget } from '@/components/ui/Icon';
+import { useHexTracker } from '@/hooks/useHexTracker';
 import { colors } from '@/theme';
 
 function ControlButton({ children }: { children: React.ReactNode }) {
@@ -36,18 +36,38 @@ function Stat({ value, label, big }: { value: string; label: string; big?: boole
   );
 }
 
+const mmss = (sec: number) =>
+  `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+
 export default function StartScreen() {
   const insets = useSafeAreaInsets();
   const [walking, setWalking] = useState(false);
+  const [durationSec, setDurationSec] = useState(0);
   const sheetRef = useRef<BottomSheet>(null);
-  // Sheet height is MEASURED from the content so the stats + the full Start button always
-  // show (no half-cut button); the primary action never needs a swipe to reach.
-  const [sheetH, setSheetH] = useState(300);
+  const [sheetH, setSheetH] = useState(320);
   const snapPoints = useMemo(() => [sheetH], [sheetH]);
+
+  const tracker = useHexTracker(walking);
+
+  // Live duration while walking.
+  useEffect(() => {
+    if (!walking) return;
+    const id = setInterval(() => setDurationSec((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [walking]);
+
+  const start = () => {
+    setDurationSec(0);
+    setWalking(true);
+  };
+  const finish = () => setWalking(false);
+
+  const dwelling = tracker.status === 'dwelling' || tracker.status === 'capturing';
+  const dwellRemain = Math.max(0, Math.ceil(tracker.dwellSec * (1 - tracker.dwellProgress)));
 
   return (
     <View className="flex-1 bg-ink-50">
-      {/* ── Live map (globe + zoom); route overlay arrives with Walk Sessions ── */}
+      {/* ── Live map; captured hexes flip saffron here ── */}
       <HexMap />
 
       {/* ── Floating controls (right) ── */}
@@ -75,40 +95,55 @@ export default function StartScreen() {
             onLayout={(e) => setSheetH(Math.ceil(e.nativeEvent.layout.height) + 28)}
             style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: insets.bottom + 16 }}
           >
-            {/* Primary metric */}
-            <View className="items-center">
-              <Stat value="00:00" label="Duration" big />
-            </View>
-
-            {/* Secondary metrics */}
-            <View className="mt-5 flex-row items-start justify-around">
-              <Stat value="0.00" label="Distance · km" />
+            {/* Primary metrics */}
+            <View className="flex-row items-end justify-around">
+              <Stat value={mmss(durationSec)} label="Duration" big />
               <View className="flex-row items-center gap-1.5">
                 <HexIcon size={18} color={colors.saffron[600]} />
-                <Stat value="0" label="Hexes" />
+                <Stat value={String(tracker.capturedCount)} label="Hexes" big />
               </View>
-              <Stat value="0:00" label="Avg pace" />
+            </View>
+
+            {/* Capture status / dwell progress */}
+            <View className="mt-6 min-h-[44px] justify-center">
+              {walking && dwelling ? (
+                <>
+                  <View className="mb-1.5 flex-row justify-between">
+                    <Text className="text-label-md text-ink-800">
+                      {tracker.status === 'capturing' ? 'Capturing…' : 'Hold this hex'}
+                    </Text>
+                    <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-md text-saffron-600">
+                      {dwellRemain}s
+                    </Text>
+                  </View>
+                  <View className="h-2 overflow-hidden rounded-full bg-ink-300">
+                    <View
+                      className="h-full rounded-full bg-saffron-600"
+                      style={{ width: `${Math.round(tracker.dwellProgress * 100)}%` }}
+                    />
+                  </View>
+                </>
+              ) : (
+                <Text className="text-center text-body-md text-ink-700">
+                  {walking ? tracker.message || 'Walk into a hex to capture it.' : 'Press Start Walk, then walk into a hex to capture it.'}
+                </Text>
+              )}
             </View>
 
             {/* Controls */}
-            <View className="mt-7">
+            <View className="mt-6">
               {!walking ? (
-                <Button label="Start Walk" size="lg" onPress={() => setWalking(true)} />
+                <Button label="Start Walk" size="lg" onPress={start} />
               ) : (
                 <View className="flex-row gap-3">
                   <View className="flex-1">
                     <Button label="Pause" variant="secondary" size="lg" onPress={() => undefined} />
                   </View>
                   <View className="flex-1">
-                    <Button label="Finish" size="lg" onPress={() => setWalking(false)} />
+                    <Button label="Finish" size="lg" onPress={finish} />
                   </View>
                 </View>
               )}
-              <Text className="mt-3 text-center text-body-sm text-ink-600">
-                {walking
-                  ? 'Walk into a hex and hold steady to capture it'
-                  : 'Live tracking arrives with Walk Sessions (Phase 10)'}
-              </Text>
             </View>
           </View>
         </BottomSheetView>

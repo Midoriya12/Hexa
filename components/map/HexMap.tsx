@@ -7,12 +7,13 @@
 //
 // Hex rendering (INTVL territory model): OWNED hexes show as coloured territory at all zooms;
 // the UNOWNED grid shows outline-only from zoom 12 so the city/globe view stays clean.
-import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
 
-import { fetchHexes, type HexCollection } from '@/lib/supabase/hexes';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useHexStore } from '@/stores/hexStore';
 
 // Public token (pk.*) — fine to bundle. Telemetry off (patch #19 / DPDPA 2023).
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? null);
@@ -56,18 +57,16 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
   // navigator keeping screens mounted, two live maps (Play + Start) leaves one blank. Mount
   // the map only while its screen is focused so exactly one surface is ever live.
   const isFocused = useIsFocused();
-  const [hexes, setHexes] = useState<HexCollection | null>(null);
+  const fc = useHexStore((s) => s.fc);
+  const loadHexes = useHexStore((s) => s.load);
+  const { user } = useCurrentUser();
   const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
 
+  // Load the grid + ownership once into the shared store (no-op if already loaded). Captures
+  // update the store, so both the Play and Start maps recolour instantly.
   useEffect(() => {
-    let alive = true;
-    fetchHexes()
-      .then((fc) => alive && setHexes(fc))
-      .catch(() => alive && setHexes(null)); // map still renders without the grid
-    return () => {
-      alive = false;
-    };
-  }, []);
+    void loadHexes(user?.id ?? null);
+  }, [loadHexes, user?.id]);
 
   if (!isFocused) return null;
 
@@ -91,8 +90,8 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
           maxZoomLevel={19}
         />
 
-        {hexes ? (
-          <ShapeSource id="hexSource" shape={hexes} tolerance={0.5}>
+        {fc ? (
+          <ShapeSource id="hexSource" shape={fc} tolerance={0.5}>
             {/* Owned territory — fill + outline, all zooms */}
             <FillLayer
               id="hexFillOwned"
