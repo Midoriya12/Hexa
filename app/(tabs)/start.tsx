@@ -67,8 +67,8 @@ export default function StartScreen() {
 
   return (
     <View className="flex-1 bg-ink-50">
-      {/* ── Live map; captured hexes flip saffron here ── */}
-      <HexMap />
+      {/* ── Live map; follows you, captured hexes flip saffron here ── */}
+      <HexMap followUser />
 
       {/* ── Floating controls (right) ── */}
       <View style={{ position: 'absolute', right: 16, top: insets.top + 12 }}>

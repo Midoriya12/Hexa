@@ -10,7 +10,15 @@
 import { Component, useEffect, useMemo, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
-import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
+import Mapbox, {
+  Camera,
+  FillLayer,
+  LineLayer,
+  LocationPuck,
+  MapView,
+  ShapeSource,
+  StyleImport,
+} from '@rnmapbox/maps';
 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useHexStore } from '@/stores/hexStore';
@@ -50,9 +58,11 @@ interface HexMapProps {
   style?: StyleProp<ViewStyle>;
   /** Lower (~2) shows the globe; higher (~14) drops into the neighbourhood. */
   zoomLevel?: number;
+  /** Follow + centre on the user's live location (used on the Start/active-walk screen). */
+  followUser?: boolean;
 }
 
-export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
+export function HexMap({ style, zoomLevel = 14, followUser = false }: HexMapProps) {
   // Mapbox GL contends for a single drawing surface across MapView instances; with the tab
   // navigator keeping screens mounted, two live maps (Play + Start) leaves one blank. Mount
   // the map only while its screen is focused so exactly one surface is ever live.
@@ -84,11 +94,18 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
         {/* Day/night lighting on the Standard basemap (bright & colourful by day, dark at night). */}
         <StyleImport id="basemap" existing config={{ lightPreset }} />
 
-        <Camera
-          defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
-          minZoomLevel={0.5}
-          maxZoomLevel={19}
-        />
+        {followUser ? (
+          <Camera followUserLocation followZoomLevel={zoomLevel} minZoomLevel={0.5} maxZoomLevel={19} />
+        ) : (
+          <Camera
+            defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
+            minZoomLevel={0.5}
+            maxZoomLevel={19}
+          />
+        )}
+
+        {/* "You are here" puck (needs location permission, granted by the capture tracker). */}
+        <LocationPuck />
 
         {fc ? (
           <ShapeSource id="hexSource" shape={fc} tolerance={0.5}>
