@@ -40,7 +40,10 @@ export default function StartScreen() {
   const insets = useSafeAreaInsets();
   const [walking, setWalking] = useState(false);
   const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['32%', '60%'], []);
+  // Sheet height is MEASURED from the content so the stats + the full Start button always
+  // show (no half-cut button); the primary action never needs a swipe to reach.
+  const [sheetH, setSheetH] = useState(300);
+  const snapPoints = useMemo(() => [sheetH], [sheetH]);
 
   return (
     <View className="flex-1 bg-ink-50">
@@ -66,41 +69,46 @@ export default function StartScreen() {
         backgroundStyle={{ backgroundColor: colors.ink[100] }}
         handleIndicatorStyle={{ backgroundColor: colors.ink[500], width: 40 }}
       >
-        <BottomSheetView style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: insets.bottom + 16 }}>
-          {/* Primary metric */}
-          <View className="items-center">
-            <Stat value="00:00" label="Duration" big />
-          </View>
-
-          {/* Secondary metrics */}
-          <View className="mt-5 flex-row items-start justify-around">
-            <Stat value="0.00" label="Distance · km" />
-            <View className="flex-row items-center gap-1.5">
-              <HexIcon size={18} color={colors.saffron[600]} />
-              <Stat value="0" label="Hexes" />
+        <BottomSheetView>
+          <View
+            onLayout={(e) => setSheetH(Math.ceil(e.nativeEvent.layout.height) + 28)}
+            style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: insets.bottom + 16 }}
+          >
+            {/* Primary metric */}
+            <View className="items-center">
+              <Stat value="00:00" label="Duration" big />
             </View>
-            <Stat value="0:00" label="Avg pace" />
-          </View>
 
-          {/* Controls */}
-          <View className="mt-7">
-            {!walking ? (
-              <Button label="Start Walk" size="lg" onPress={() => setWalking(true)} />
-            ) : (
-              <View className="flex-row gap-3">
-                <View className="flex-1">
-                  <Button label="Pause" variant="secondary" size="lg" onPress={() => undefined} />
-                </View>
-                <View className="flex-1">
-                  <Button label="Finish" size="lg" onPress={() => setWalking(false)} />
-                </View>
+            {/* Secondary metrics */}
+            <View className="mt-5 flex-row items-start justify-around">
+              <Stat value="0.00" label="Distance · km" />
+              <View className="flex-row items-center gap-1.5">
+                <HexIcon size={18} color={colors.saffron[600]} />
+                <Stat value="0" label="Hexes" />
               </View>
-            )}
-            <Text className="mt-3 text-center text-body-sm text-ink-600">
-              {walking
-                ? 'Walk into a hex and hold 20s to capture it'
-                : 'Live tracking arrives with Walk Sessions (Phase 10)'}
-            </Text>
+              <Stat value="0:00" label="Avg pace" />
+            </View>
+
+            {/* Controls */}
+            <View className="mt-7">
+              {!walking ? (
+                <Button label="Start Walk" size="lg" onPress={() => setWalking(true)} />
+              ) : (
+                <View className="flex-row gap-3">
+                  <View className="flex-1">
+                    <Button label="Pause" variant="secondary" size="lg" onPress={() => undefined} />
+                  </View>
+                  <View className="flex-1">
+                    <Button label="Finish" size="lg" onPress={() => setWalking(false)} />
+                  </View>
+                </View>
+              )}
+              <Text className="mt-3 text-center text-body-sm text-ink-600">
+                {walking
+                  ? 'Walk into a hex and hold steady to capture it'
+                  : 'Live tracking arrives with Walk Sessions (Phase 10)'}
+              </Text>
+            </View>
           </View>
         </BottomSheetView>
       </BottomSheet>

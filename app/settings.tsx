@@ -1,6 +1,6 @@
-// Settings — matches INTVL's light "Me menu" screenshot: light bg, profile header,
-// saffron "Refer a friend" gradient card, white grouped rows, sign out + delete.
-// Dropped "Plans & purchases" (no in-app purchases — PROGA). Sign out is functional.
+// Settings — INTVL's "Me menu" screen, DARK to match Feed/Me: profile header, saffron
+// "Refer a friend" gradient card, grouped rows, sign out + delete. Dropped "Plans &
+// purchases" (no in-app purchases — PROGA). Sign out is functional.
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,13 +28,13 @@ function Row({ icon, label, highlight, onPress }: { icon: React.ReactNode; label
   return (
     <Pressable
       onPress={onPress}
-      className={`mb-3 flex-row items-center rounded-md bg-light-card px-4 py-4 ${
-        highlight ? 'border border-saffron-600' : 'border border-light-border'
+      className={`mb-3 flex-row items-center rounded-md bg-ink-100 px-4 py-4 ${
+        highlight ? 'border border-saffron-600' : 'border border-ink-400'
       }`}
     >
       <View className="w-7">{icon}</View>
-      <Text className="ml-2 flex-1 text-body-lg text-light-ink">{label}</Text>
-      <IconChevronRight size={20} color={colors.light.faint} />
+      <Text className="ml-2 flex-1 text-body-lg text-ink-900">{label}</Text>
+      <IconChevronRight size={20} color={colors.ink[500]} />
     </Pressable>
   );
 }
@@ -43,7 +43,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useCurrentUser();
   const signOut = useUserStore((s) => s.signOut);
-  const ic = (Icon: typeof IconPencil) => <Icon size={22} color={colors.light.sub} />;
+  const ic = (Icon: typeof IconPencil) => <Icon size={22} color={colors.ink[600]} />;
 
   const confirmSignOut = () =>
     Alert.alert('Sign out?', 'You can sign back in with your phone number.', [
@@ -57,11 +57,11 @@ export default function SettingsScreen() {
     ]);
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-light-bg">
+    <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
       {/* Header: back + name + View profile */}
       <View className="flex-row items-center px-3 py-2">
-        <IconChevronLeft size={26} color={colors.light.ink} onPress={() => router.back()} />
-        <Text className="ml-1 flex-1 text-heading-md text-light-ink">{user?.display_name ?? 'Me'}</Text>
+        <IconChevronLeft size={26} color={colors.ink[900]} onPress={() => router.back()} />
+        <Text className="ml-1 flex-1 text-heading-md text-ink-900">{user?.display_name ?? 'Me'}</Text>
         <Text className="text-body-md font-semibold text-saffron-700">View profile</Text>
       </View>
 

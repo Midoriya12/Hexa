@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
-import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource } from '@rnmapbox/maps';
+import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource, StyleImport } from '@rnmapbox/maps';
 
 import { fetchHexes, type HexCollection } from '@/lib/supabase/hexes';
 
@@ -22,12 +22,14 @@ interface HexMapProps {
   zoomLevel?: number;
 }
 
-// Daytime → bright Light style; night → Dark, so the map (and globe) is pretty in daylight
-// and easy on the eyes at night. Fixed local-hour window (refine to real sunrise/sunset later).
-function dayNightStyle(): string {
+// Mapbox Standard — the modern colourful 3D globe (blue oceans, green land, atmosphere).
+// Its `lightPreset` gives day/night: bright & scenic in daylight, dark at night.
+const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
+
+// Fixed local-hour window (refine to real sunrise/sunset later).
+function isDaytime(): boolean {
   const h = new Date().getHours();
-  const isDay = h >= 6 && h < 18;
-  return isDay ? Mapbox.StyleURL.Light : Mapbox.StyleURL.Dark;
+  return h >= 6 && h < 18;
 }
 
 export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
@@ -36,7 +38,7 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
   // Mount the map only while its screen is focused so exactly one surface is ever live.
   const isFocused = useIsFocused();
   const [hexes, setHexes] = useState<HexCollection | null>(null);
-  const styleURL = useMemo(() => dayNightStyle(), []);
+  const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
 
   useEffect(() => {
     let alive = true;
@@ -53,13 +55,16 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
   return (
     <MapView
       style={style ?? StyleSheet.absoluteFill}
-      styleURL={styleURL}
+      styleURL={STANDARD_STYLE}
       projection="globe"
       scaleBarEnabled={false}
       logoEnabled={false}
       attributionEnabled={false}
       compassEnabled={false}
     >
+      {/* Day/night lighting on the Standard basemap (bright & colourful by day, dark at night). */}
+      <StyleImport id="basemap" existing config={{ lightPreset }} />
+
       <Camera
         defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
         minZoomLevel={0.5}
@@ -90,14 +95,15 @@ export function HexMap({ style, zoomLevel = 14 }: HexMapProps) {
               lineJoin: 'round',
             }}
           />
-          {/* Unowned grid — outline only, and ONLY when zoomed in (no city-wide clutter) */}
+          {/* Unowned grid — outline only. Appears from zoom 12 (your locality) so you don't
+              have to zoom in hard, but the city/globe view (zoom <12) stays clean. */}
           <LineLayer
             id="hexLineUnowned"
             filter={['==', ['get', 'owner'], 'none']}
-            minZoomLevel={13}
+            minZoomLevel={12}
             style={{
-              lineColor: 'rgba(255,140,0,0.85)',
-              lineWidth: ['interpolate', ['linear'], ['zoom'], 13, 1.4, 17, 2.8],
+              lineColor: 'rgba(255,140,0,0.9)',
+              lineWidth: ['interpolate', ['linear'], ['zoom'], 12, 1.2, 17, 2.8],
               lineJoin: 'round',
             }}
           />
