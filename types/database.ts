@@ -9,3 +9,6 @@ export type UserRow = Tables<'users'>;
 
 /** The 8 safe columns exposed via the public_users view (cross-user reads). */
 export type PublicUserRow = Tables<'public_users'>;
+
+/** One static playable H3 cell (seeded grid; clients read-only). */
+export type HexRow = Tables<'hexes'>;

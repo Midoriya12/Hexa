@@ -2,9 +2,12 @@
 // Start sheets. NOTE: requires the native Mapbox build; only import this into screens
 // AFTER the dev client is rebuilt with @rnmapbox/maps, or the app will crash.
 // Hex/zone overlays come in Phase 2/3 once hexes are generated.
+import { useEffect, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useIsFocused } from 'expo-router';
-import Mapbox, { Camera, MapView } from '@rnmapbox/maps';
+import Mapbox, { Camera, FillLayer, LineLayer, MapView, ShapeSource } from '@rnmapbox/maps';
+
+import { fetchHexes, type HexCollection } from '@/lib/supabase/hexes';
 
 // Public token (pk.*) — fine to bundle. Telemetry off (patch #19 / DPDPA 2023).
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? null);
@@ -24,6 +27,18 @@ export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
   // tab navigator keeping screens mounted, two live maps (Play + Start) leaves one blank.
   // Mount the map only while its screen is focused so exactly one surface is ever live.
   const isFocused = useIsFocused();
+  const [hexes, setHexes] = useState<HexCollection | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchHexes()
+      .then((fc) => alive && setHexes(fc))
+      .catch(() => alive && setHexes(null)); // map still renders without the grid
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   if (!isFocused) return null;
 
   return (
@@ -41,6 +56,44 @@ export function HexMap({ style, zoomLevel = 12 }: HexMapProps) {
         minZoomLevel={0.5}
         maxZoomLevel={19}
       />
+
+      {/* Playable hex grid. One source + fill + outline, coloured per-feature by ownership.
+          Unowned = no fill + faint outline (reads as a grid); yours = saffron; others = grey
+          (their clan colour comes in Step C). Layers gated to street zoom for performance. */}
+      {hexes ? (
+        <ShapeSource id="hexSource" shape={hexes} tolerance={0.5}>
+          <FillLayer
+            id="hexFill"
+            minZoomLevel={9}
+            style={{
+              fillColor: [
+                'match',
+                ['get', 'owner'],
+                'you', '#FF6F00',
+                'other', '#888888',
+                'rgba(0,0,0,0)',
+              ],
+              fillOpacity: ['match', ['get', 'owner'], 'you', 0.55, 'other', 0.4, 0],
+              fillAntialias: true,
+            }}
+          />
+          <LineLayer
+            id="hexOutline"
+            minZoomLevel={9}
+            style={{
+              lineColor: [
+                'match',
+                ['get', 'owner'],
+                'you', '#FF6F00',
+                'other', '#AAAAAA',
+                'rgba(255,111,0,0.30)',
+              ],
+              lineWidth: ['match', ['get', 'owner'], 'none', 0.75, 1.25],
+              lineJoin: 'round',
+            }}
+          />
+        </ShapeSource>
+      ) : null}
     </MapView>
   );
 }

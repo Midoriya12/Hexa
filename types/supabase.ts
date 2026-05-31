@@ -39,6 +39,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      hexes: {
+        Row: {
+          boundary: Json
+          capture_lat: number
+          capture_lng: number
+          center_lat: number
+          center_lng: number
+          created_at: string | null
+          h3_index: string
+          is_active: boolean | null
+          neighbourhood: string | null
+          pincode: string | null
+        }
+        Insert: {
+          boundary: Json
+          capture_lat: number
+          capture_lng: number
+          center_lat: number
+          center_lng: number
+          created_at?: string | null
+          h3_index: string
+          is_active?: boolean | null
+          neighbourhood?: string | null
+          pincode?: string | null
+        }
+        Update: {
+          boundary?: Json
+          capture_lat?: number
+          capture_lng?: number
+          center_lat?: number
+          center_lng?: number
+          created_at?: string | null
+          h3_index?: string
+          is_active?: boolean | null
+          neighbourhood?: string | null
+          pincode?: string | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           avatar_url: string | null

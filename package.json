@@ -25,6 +25,7 @@
     "expo-system-ui": "~56.0.5",
     "expo-task-manager": "~56.0.16",
     "expo-web-browser": "~56.0.5",
+    "h3-js": "^4.4.0",
     "nativewind": "^4.2.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -41,6 +42,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@turf/turf": "^7.3.5",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
