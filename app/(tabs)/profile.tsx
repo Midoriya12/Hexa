@@ -1,7 +1,6 @@
-// Me — INTVL's "Me / Level & XP" screen, DARK to match Feed (level + XP-to-next +
-// Next-unlock row + horizontal XP-challenge cards + Friends/Medals). Saffron accent, Hexa
-// content. NO "create plan" (we're a game, not a run app). Settings opens from the gear.
-// DESIGN PREVIEW: live XP/challenge wiring is Phase 5.
+// Me — DARK profile/dashboard. Identity + level/XP, a stats dashboard (Round Points · Hexes
+// held · Rent/hr), the hex-colour picker (your captured hexes render in this colour), XP
+// challenges, and Friends/Medals. Settings opens from the gear. (Your-walks list is next.)
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
@@ -22,6 +21,8 @@ import {
 
 import { Avatar, Badge } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { updateOwnUser } from '@/lib/supabase/auth';
+import { useUserStore } from '@/stores/userStore';
 import { colors } from '@/theme';
 
 const CHALLENGES = [
@@ -32,6 +33,19 @@ const CHALLENGES = [
   { key: 'crown', title: 'Capture a Crown hex', xp: 100, Icon: IconCrown },
   { key: 'hold7', title: 'Hold a hex 7 days', xp: 75, Icon: IconClock },
 ] as const;
+
+const SWATCHES = Object.values(colors.player); // 8 hex-colour choices
+
+function DashStat({ value, label }: { value: string; label: string }) {
+  return (
+    <View className="flex-1 items-center rounded-md border border-ink-400 bg-ink-100 py-3">
+      <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-lg font-extrabold text-saffron-600">
+        {value}
+      </Text>
+      <Text className="mt-0.5 text-label-sm uppercase tracking-wide text-ink-600">{label}</Text>
+    </View>
+  );
+}
 
 function MenuRow({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
   return (
@@ -46,20 +60,35 @@ function MenuRow({ icon, label, onPress }: { icon: React.ReactNode; label: strin
 export default function MeScreen() {
   const router = useRouter();
   const { user } = useCurrentUser();
+  const setUser = useUserStore((s) => s.setUser);
   const level = user?.level ?? 1;
+
+  const points = user?.current_round_points ?? 0;
+  const hexes = user?.current_held_hexes ?? 0;
+  const rentPerHr = hexes * 3; // flat PPH for now (rarity tiers + hourly engine = Phase 5)
+  const myColour = user?.hex_colour || colors.player.saffron;
+
+  const pickColour = async (hex: string) => {
+    if (!user?.id || hex === user.hex_colour) return;
+    setUser({ ...user, hex_colour: hex }); // optimistic
+    try {
+      const row = await updateOwnUser(user.id, { hex_colour: hex });
+      setUser(row);
+    } catch {
+      /* keep optimistic; will reconcile on next profile fetch */
+    }
+  };
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
-      {/* Dark header strip */}
       <View className="h-12 flex-row items-center justify-between px-4">
         <IconBell size={24} color={colors.ink[900]} />
         <Text className="text-heading-md text-ink-900">Me</Text>
         <IconSettings size={24} color={colors.ink[900]} onPress={() => router.push('/settings' as Href)} />
       </View>
 
-      {/* Body */}
       <ScrollView className="flex-1 bg-ink-50" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-        {/* Identity + XP-to-next bar */}
+        {/* Identity */}
         <View className="flex-row items-center">
           <Avatar size={64} name={user?.display_name ?? user?.username ?? undefined} uri={user?.avatar_url ?? undefined} />
           <View className="ml-4 flex-1">
@@ -68,6 +97,15 @@ export default function MeScreen() {
           </View>
           <Badge tone="saffron" label={`Level ${level}`} />
         </View>
+
+        {/* Dashboard: points · hexes · rent */}
+        <View className="mt-4 flex-row gap-3">
+          <DashStat value={points.toLocaleString('en-IN')} label="Points" />
+          <DashStat value={String(hexes)} label="Hexes" />
+          <DashStat value={`${rentPerHr}/hr`} label="Rent" />
+        </View>
+
+        {/* XP-to-next bar */}
         <View className="mt-4">
           <View className="mb-1 flex-row justify-between">
             <Text className="text-label-sm uppercase text-ink-700">{500} XP to Level {level + 1}</Text>
@@ -80,14 +118,26 @@ export default function MeScreen() {
           </View>
         </View>
 
-        {/* Next unlock */}
-        <Pressable className="mt-5 flex-row items-center rounded-md border border-ink-400 bg-ink-100 p-4">
-          <View className="flex-1">
-            <Text className="text-heading-sm text-ink-900">Next unlock: Level 3</Text>
-            <Text className="text-body-sm text-ink-700">Friends + custom hex colour</Text>
-          </View>
-          <IconChevronRight size={22} color={colors.ink[500]} />
-        </Pressable>
+        {/* Hex colour picker */}
+        <Text className="mb-1 mt-6 text-heading-md text-ink-900">Your hex colour</Text>
+        <Text className="mb-3 text-body-sm text-ink-700">Captured hexes show in this colour on the map.</Text>
+        <View className="flex-row flex-wrap gap-3">
+          {SWATCHES.map((c) => {
+            const selected = myColour === c;
+            return (
+              <Pressable
+                key={c}
+                onPress={() => pickColour(c)}
+                style={{
+                  backgroundColor: c,
+                  borderWidth: selected ? 3 : 0,
+                  borderColor: '#FFFFFF',
+                }}
+                className="h-11 w-11 rounded-full"
+              />
+            );
+          })}
+        </View>
 
         {/* XP challenges */}
         <Text className="mb-1 mt-6 text-heading-md text-ink-900">Earn XP</Text>

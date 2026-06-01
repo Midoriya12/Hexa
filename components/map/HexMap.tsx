@@ -92,6 +92,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
   const fc = useHexStore((s) => s.fc);
   const loadHexes = useHexStore((s) => s.load);
   const { user } = useCurrentUser();
+  const myColor = user?.hex_colour || '#FF6F00'; // your captured hexes render in your chosen colour
   const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
   const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
 
@@ -188,7 +189,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
               id="hexFillOwned"
               filter={['!=', ['get', 'owner'], 'none']}
               style={{
-                fillColor: ['match', ['get', 'owner'], 'you', '#FF6F00', 'other', '#888888', '#888888'],
+                fillColor: ['match', ['get', 'owner'], 'you', myColor, 'other', '#888888', '#888888'],
                 fillOpacity: ['match', ['get', 'owner'], 'you', 0.55, 0.4],
                 fillAntialias: true,
               }}
@@ -197,7 +198,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
               id="hexLineOwned"
               filter={['!=', ['get', 'owner'], 'none']}
               style={{
-                lineColor: ['match', ['get', 'owner'], 'you', '#FF6F00', 'other', '#CFCFCF', '#CFCFCF'],
+                lineColor: ['match', ['get', 'owner'], 'you', myColor, 'other', '#CFCFCF', '#CFCFCF'],
                 lineWidth: ['interpolate', ['linear'], ['zoom'], 11, 2.0, 16, 3.2],
                 lineJoin: 'round',
               }}

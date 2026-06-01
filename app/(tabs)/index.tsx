@@ -19,13 +19,13 @@ import { colors } from '@/theme';
 const CLAN_MEMBER_CAP = 100; // clans are capped at 100 members (patch #32)
 const CLAN = { name: 'HSR Walkers', hexes: 3392, members: 92 };
 const MEMBERS = [
-  { rank: 1, name: 'Priya', hexes: 842 },
-  { rank: 2, name: 'Rohit', hexes: 718 },
-  { rank: 3, name: 'Aisha', hexes: 665 },
-  { rank: 4, name: 'Karthik', hexes: 521 },
-  { rank: 5, name: 'Charan12', hexes: 421, you: true },
-  { rank: 6, name: 'Meera', hexes: 398 },
-  { rank: 7, name: 'Sandeep', hexes: 274 },
+  { rank: 1, name: 'Priya', hexes: 842, points: 18240 },
+  { rank: 2, name: 'Rohit', hexes: 718, points: 15110 },
+  { rank: 3, name: 'Aisha', hexes: 665, points: 13980 },
+  { rank: 4, name: 'Karthik', hexes: 521, points: 10640 },
+  { rank: 5, name: 'Charan12', hexes: 421, points: 8730, you: true },
+  { rank: 6, name: 'Meera', hexes: 398, points: 8120 },
+  { rank: 7, name: 'Sandeep', hexes: 274, points: 5510 },
 ];
 const SHEET_TABS = ['Leaderboard', 'Territories', 'History'];
 const MODES = ['Solo', 'Clan'];
@@ -228,9 +228,14 @@ export default function PlayScreen() {
                       </Text>
                       <Avatar size={32} name={m.name} />
                       <Text className="ml-3 flex-1 text-heading-sm text-ink-900">{m.name}</Text>
-                      <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">
-                        {m.hexes}
-                      </Text>
+                      <View className="items-end">
+                        <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">
+                          {m.points.toLocaleString('en-IN')}
+                        </Text>
+                        <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-sm text-ink-600">
+                          {m.hexes} hexes
+                        </Text>
+                      </View>
                     </View>
                   );
                 })}

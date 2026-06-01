@@ -50,3 +50,15 @@ export async function fetchOwnUser(userId: string): Promise<UserRow | null> {
 export function isProfileComplete(user: UserRow | null): boolean {
   return Boolean(user && user.username && user.pincode);
 }
+
+/** Patch the caller's own users row (RLS: owner-only). Returns the updated row. */
+export async function updateOwnUser(userId: string, patch: Partial<UserRow>): Promise<UserRow> {
+  const { data, error } = await supabase
+    .from('users')
+    .update(patch)
+    .eq('id', userId)
+    .select('*')
+    .single<UserRow>();
+  if (error) throw error;
+  return data;
+}
