@@ -77,6 +77,12 @@ function nearestHex(lat: number, lng: number): { h3: string; owner: HexFeaturePr
   return { h3: best.h3, owner: best.owner };
 }
 
+/** Look up a hex's props by id (for dwell hysteresis). */
+function getHexProps(h3: string): HexFeatureProps | null {
+  const fc = useHexStore.getState().fc;
+  return fc?.features.find((f) => f.properties.h3 === h3)?.properties ?? null;
+}
+
 export function useHexTracker(active: boolean, sessionKey: number): TrackState {
   const user = useUserStore((s) => s.user);
   const setUser = useUserStore((s) => s.setUser);
@@ -165,6 +171,18 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
             }
           }
           lastFixRef.current = { lat: latitude, lng: longitude };
+
+          // Hysteresis: if mid-dwell and still within reach of THAT hex, keep it — GPS jitter near
+          // a cell boundary must not reset the timer. (Nearest-centre is already jitter-stable;
+          // this covers the edge case of standing right on a boundary.)
+          const cur = hexRef.current;
+          if (cur) {
+            const p = getHexProps(cur);
+            if (p && p.owner !== 'you' && haversineM(latitude, longitude, p.clat, p.clng) <= HEX_REACH_M) {
+              setState((s) => ({ ...s, accuracy, currentHex: cur }));
+              return;
+            }
+          }
 
           const hit = nearestHex(latitude, longitude);
           if (!hit) {

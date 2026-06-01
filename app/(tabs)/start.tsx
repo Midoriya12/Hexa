@@ -47,7 +47,12 @@ export default function StartScreen() {
   const [paused, setPaused] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
   const [durationSec, setDurationSec] = useState(0);
-  const [summary, setSummary] = useState<{ durationSec: number; distanceM: number; hexes: number } | null>(null);
+  const [summary, setSummary] = useState<{
+    durationSec: number;
+    distanceM: number;
+    hexes: number;
+    points: number;
+  } | null>(null);
   const [card, setCard] = useState<{ ip: number; pph: number } | null>(null);
   const seenNonce = useRef(0);
 
@@ -80,9 +85,16 @@ export default function StartScreen() {
     setWalking(true);
   };
   const finish = () => {
-    setSummary({ durationSec, distanceM: tracker.distanceM, hexes: tracker.capturedCount });
+    setSummary({
+      durationSec,
+      distanceM: tracker.distanceM,
+      hexes: tracker.capturedCount,
+      points: tracker.capturedCount * 100, // flat IP=100 for now
+    });
     setWalking(false);
     setPaused(false);
+    setDurationSec(0);
+    setSessionKey((k) => k + 1); // reset tracker distance/hexes so the next walk starts at 0
   };
 
   const dwelling = tracker.status === 'dwelling' || tracker.status === 'capturing';
@@ -183,6 +195,7 @@ export default function StartScreen() {
         durationSec={summary?.durationSec ?? 0}
         distanceM={summary?.distanceM ?? 0}
         hexes={summary?.hexes ?? 0}
+        points={summary?.points ?? 0}
         onClose={() => setSummary(null)}
       />
     </View>

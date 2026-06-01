@@ -56,12 +56,13 @@ export function CaptureSuccess({
       </View>
       {visible ? (
         <ConfettiCannon
-          count={120}
+          count={70}
           origin={{ x: width / 2, y: -20 }}
           autoStart
+          autoStartDelay={250} // let the modal finish fading in before the pieces animate (smoother)
           fadeOut
-          explosionSpeed={350}
-          fallSpeed={2800}
+          explosionSpeed={400}
+          fallSpeed={2600}
           colors={[colors.saffron[300], colors.saffron[400], colors.saffron[600], '#FFFFFF']}
         />
       ) : null}
