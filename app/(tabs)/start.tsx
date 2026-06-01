@@ -1,7 +1,7 @@
-// Start — the active-walk screen. Full-bleed map + a persistent stats sheet. Pressing Start
-// Walk begins the live capture loop (useHexTracker): your GPS is watched, the hex you're in is
-// detected, a level-scaled dwell runs, and the hex auto-captures + flips saffron on the map.
-// Duration + Hexes are live; richer route/distance stats come with full Walk Sessions (Phase 10).
+// Start — the active-walk screen. Map + stats sheet + the live capture loop (useHexTracker).
+// Start Walk → tracking begins, you walk into a hex, a TOP progress bar shows the dwell, the
+// hex auto-captures (success card with confetti + points), and Finish shows a walk summary.
+// Pause/Resume freezes the session; a new Start resets it. Duration + Distance + Hexes are live.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { Button } from '@/components/ui';
 import { HexMap } from '@/components/map/HexMap';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { IconStack, IconTarget } from '@/components/ui/Icon';
+import { CaptureSuccess } from '@/components/capture/CaptureSuccess';
+import { WalkSummary } from '@/components/capture/WalkSummary';
 import { useHexTracker } from '@/hooks/useHexTracker';
 import { colors } from '@/theme';
 
@@ -42,36 +44,71 @@ const mmss = (sec: number) =>
 export default function StartScreen() {
   const insets = useSafeAreaInsets();
   const [walking, setWalking] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0);
   const [durationSec, setDurationSec] = useState(0);
+  const [summary, setSummary] = useState<{ durationSec: number; distanceM: number; hexes: number } | null>(null);
+  const [card, setCard] = useState<{ ip: number; pph: number } | null>(null);
+  const seenNonce = useRef(0);
+
   const sheetRef = useRef<BottomSheet>(null);
-  const [sheetH, setSheetH] = useState(320);
+  const [sheetH, setSheetH] = useState(300);
   const snapPoints = useMemo(() => [sheetH], [sheetH]);
 
-  const tracker = useHexTracker(walking);
+  const tracker = useHexTracker(walking && !paused, sessionKey);
 
-  // Live duration while walking.
+  // Live duration while actively walking (frozen while paused).
   useEffect(() => {
-    if (!walking) return;
+    if (!walking || paused) return;
     const id = setInterval(() => setDurationSec((s) => s + 1), 1000);
     return () => clearInterval(id);
-  }, [walking]);
+  }, [walking, paused]);
+
+  // Pop the success card once per capture (nonce changes each capture).
+  useEffect(() => {
+    if (tracker.lastCapture && tracker.lastCapture.nonce !== seenNonce.current) {
+      seenNonce.current = tracker.lastCapture.nonce;
+      setCard({ ip: tracker.lastCapture.ip, pph: tracker.lastCapture.pph });
+    }
+  }, [tracker.lastCapture]);
 
   const start = () => {
+    setSessionKey((k) => k + 1);
     setDurationSec(0);
+    setPaused(false);
+    setSummary(null);
     setWalking(true);
   };
-  const finish = () => setWalking(false);
+  const finish = () => {
+    setSummary({ durationSec, distanceM: tracker.distanceM, hexes: tracker.capturedCount });
+    setWalking(false);
+    setPaused(false);
+  };
 
   const dwelling = tracker.status === 'dwelling' || tracker.status === 'capturing';
   const dwellRemain = Math.max(0, Math.ceil(tracker.dwellSec * (1 - tracker.dwellProgress)));
 
   return (
     <View className="flex-1 bg-ink-50">
-      {/* ── Live map; follows you, captured hexes flip saffron here ── */}
       <HexMap followUser />
 
+      {/* ── TOP dwell progress bar (prominent — so capture never feels random) ── */}
+      {walking && dwelling ? (
+        <View style={{ position: 'absolute', top: insets.top + 6, left: 0, right: 0 }} className="px-4">
+          <View className="h-2.5 overflow-hidden rounded-full bg-ink-300">
+            <View
+              className="h-full rounded-full bg-saffron-600"
+              style={{ width: `${Math.round(tracker.dwellProgress * 100)}%` }}
+            />
+          </View>
+          <Text className="mt-1 text-center text-label-sm font-semibold text-ink-900">
+            {tracker.status === 'capturing' ? 'Capturing…' : `Hold this hex · ${dwellRemain}s`}
+          </Text>
+        </View>
+      ) : null}
+
       {/* ── Floating controls (right) ── */}
-      <View style={{ position: 'absolute', right: 16, top: insets.top + 12 }}>
+      <View style={{ position: 'absolute', right: 16, top: insets.top + 56 }}>
         <ControlButton>
           <IconTarget size={20} color={colors.ink[900]} />
         </ControlButton>
@@ -80,7 +117,7 @@ export default function StartScreen() {
         </ControlButton>
       </View>
 
-      {/* ── Persistent walk-stats sheet ── */}
+      {/* ── Stats sheet ── */}
       <BottomSheet
         ref={sheetRef}
         index={0}
@@ -95,49 +132,35 @@ export default function StartScreen() {
             onLayout={(e) => setSheetH(Math.ceil(e.nativeEvent.layout.height) + 28)}
             style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: insets.bottom + 16 }}
           >
-            {/* Primary metrics */}
-            <View className="flex-row items-end justify-around">
+            <View className="items-center">
               <Stat value={mmss(durationSec)} label="Duration" big />
+            </View>
+            <View className="mt-5 flex-row items-start justify-around">
+              <Stat value={(tracker.distanceM / 1000).toFixed(2)} label="Distance · km" />
               <View className="flex-row items-center gap-1.5">
                 <HexIcon size={18} color={colors.saffron[600]} />
-                <Stat value={String(tracker.capturedCount)} label="Hexes" big />
+                <Stat value={String(tracker.capturedCount)} label="Hexes" />
               </View>
             </View>
 
-            {/* Capture status / dwell progress */}
-            <View className="mt-6 min-h-[44px] justify-center">
-              {walking && dwelling ? (
-                <>
-                  <View className="mb-1.5 flex-row justify-between">
-                    <Text className="text-label-md text-ink-800">
-                      {tracker.status === 'capturing' ? 'Capturing…' : 'Hold this hex'}
-                    </Text>
-                    <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-md text-saffron-600">
-                      {dwellRemain}s
-                    </Text>
-                  </View>
-                  <View className="h-2 overflow-hidden rounded-full bg-ink-300">
-                    <View
-                      className="h-full rounded-full bg-saffron-600"
-                      style={{ width: `${Math.round(tracker.dwellProgress * 100)}%` }}
-                    />
-                  </View>
-                </>
-              ) : (
-                <Text className="text-center text-body-md text-ink-700">
-                  {walking ? tracker.message || 'Walk into a hex to capture it.' : 'Press Start Walk, then walk into a hex to capture it.'}
-                </Text>
-              )}
+            <View className="mt-5 min-h-[20px] justify-center">
+              <Text className="text-center text-body-md text-ink-700">
+                {walking ? tracker.message || 'Walk into a hex to capture it.' : 'Press Start Walk, then walk into a hex.'}
+              </Text>
             </View>
 
-            {/* Controls */}
-            <View className="mt-6">
+            <View className="mt-5">
               {!walking ? (
                 <Button label="Start Walk" size="lg" onPress={start} />
               ) : (
                 <View className="flex-row gap-3">
                   <View className="flex-1">
-                    <Button label="Pause" variant="secondary" size="lg" onPress={() => undefined} />
+                    <Button
+                      label={paused ? 'Resume' : 'Pause'}
+                      variant="secondary"
+                      size="lg"
+                      onPress={() => setPaused((p) => !p)}
+                    />
                   </View>
                   <View className="flex-1">
                     <Button label="Finish" size="lg" onPress={finish} />
@@ -148,6 +171,20 @@ export default function StartScreen() {
           </View>
         </BottomSheetView>
       </BottomSheet>
+
+      <CaptureSuccess
+        visible={!!card}
+        ip={card?.ip ?? 0}
+        pph={card?.pph ?? 0}
+        onClose={() => setCard(null)}
+      />
+      <WalkSummary
+        visible={!!summary}
+        durationSec={summary?.durationSec ?? 0}
+        distanceM={summary?.distanceM ?? 0}
+        hexes={summary?.hexes ?? 0}
+        onClose={() => setSummary(null)}
+      />
     </View>
   );
 }

@@ -35,11 +35,25 @@ export interface TrackState {
   dwellProgress: number; // 0..1
   dwellSec: number;
   capturedCount: number;
+  distanceM: number;
+  /** Set on each successful capture (drives the success card); cleared on a new session. */
+  lastCapture: { ip: number; pph: number; h3: string; nonce: number } | null;
   message: string;
 }
 
 const EARTH_M_PER_DEG = 111_320;
 const HEX_REACH_M = 80; // res-10 circumradius ~75m + a little slack
+const FLAT_PPH = 3; // common-hex rent/hr (rarity tiers + the hourly engine come in Phase 5)
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
 
 /** Nearest playable cell to a GPS point (its containing hex), or null if none within reach. */
 function nearestHex(lat: number, lng: number): { h3: string; owner: HexFeatureProps['owner'] } | null {
@@ -63,7 +77,7 @@ function nearestHex(lat: number, lng: number): { h3: string; owner: HexFeaturePr
   return { h3: best.h3, owner: best.owner };
 }
 
-export function useHexTracker(active: boolean): TrackState {
+export function useHexTracker(active: boolean, sessionKey: number): TrackState {
   const user = useUserStore((s) => s.user);
   const setUser = useUserStore((s) => s.setUser);
   const setOwner = useHexStore((s) => s.setOwner);
@@ -81,20 +95,34 @@ export function useHexTracker(active: boolean): TrackState {
     dwellProgress: 0,
     dwellSec,
     capturedCount: 0,
+    distanceM: 0,
+    lastCapture: null,
     message: '',
   });
 
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastFixRef = useRef<{ lat: number; lng: number } | null>(null);
   const hexRef = useRef<string | null>(null);
   const dwellStartRef = useRef<number | null>(null);
   const capturingRef = useRef(false);
   const countRef = useRef(0);
+  const distanceRef = useRef(0);
+  const captureNonceRef = useRef(0);
+
+  // New session (a fresh Start, not a pause/resume) → zero the counters.
+  useEffect(() => {
+    countRef.current = 0;
+    distanceRef.current = 0;
+    lastFixRef.current = null;
+    setState((s) => ({ ...s, capturedCount: 0, distanceM: 0, lastCapture: null }));
+  }, [sessionKey]);
 
   useEffect(() => {
     if (!active) {
       hexRef.current = null;
       dwellStartRef.current = null;
       coordsRef.current = null;
+      lastFixRef.current = null; // so resume doesn't count a phantom step from the pause point
       setState((s) => ({ ...s, status: 'idle', currentHex: null, dwellProgress: 0, message: '' }));
       return;
     }
@@ -127,6 +155,16 @@ export function useHexTracker(active: boolean): TrackState {
             return;
           }
           coordsRef.current = { lat: latitude, lng: longitude };
+
+          // Accumulate walk distance (ignore sub-metre noise + >50m GPS jumps).
+          if (lastFixRef.current) {
+            const step = haversineM(lastFixRef.current.lat, lastFixRef.current.lng, latitude, longitude);
+            if (step > 1 && step < 50) {
+              distanceRef.current += step;
+              setState((s) => ({ ...s, distanceM: distanceRef.current }));
+            }
+          }
+          lastFixRef.current = { lat: latitude, lng: longitude };
 
           const hit = nearestHex(latitude, longitude);
           if (!hit) {
@@ -179,6 +217,7 @@ export function useHexTracker(active: boolean): TrackState {
         if (res.ok) {
           setOwner(h3, 'you');
           countRef.current += 1;
+          captureNonceRef.current += 1;
           hexRef.current = null;
           dwellStartRef.current = null;
           setState((s) => ({
@@ -187,6 +226,7 @@ export function useHexTracker(active: boolean): TrackState {
             currentHex: h3,
             dwellProgress: 0,
             capturedCount: countRef.current,
+            lastCapture: { ip: res.result.ip, pph: FLAT_PPH, h3, nonce: captureNonceRef.current },
             message: `Hex captured! +${res.result.ip} pts`,
           }));
           if (myId) {
