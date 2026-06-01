@@ -4,9 +4,10 @@
 // header (identity + two metric columns: hexes held · members); Solo shows you + your hexes.
 // Leaderboard/Territories/History live below, reached by swiping up. Solo vs Clan switches the
 // summary (and, once captures exist, which hexes the map highlights — patch #34).
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/components/ui/Icon';
 
@@ -15,6 +16,7 @@ import { HexMap, type HexMapHandle } from '@/components/map/HexMap';
 import { HexInfo } from '@/components/map/HexInfo';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { fetchTopPlayers, type LeaderPlayer } from '@/lib/supabase/leaderboard';
 import { colors } from '@/theme';
 
 const CLAN_MEMBER_CAP = 100; // clans are capped at 100 members (patch #32)
@@ -99,6 +101,18 @@ export default function PlayScreen() {
   const sheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<HexMapHandle>(null);
   const [selectedHex, setSelectedHex] = useState<string | null>(null);
+  const [topPlayers, setTopPlayers] = useState<LeaderPlayer[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      fetchTopPlayers()
+        .then((p) => alive && setTopPlayers(p))
+        .catch(() => undefined);
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   // Peek snap is measured from the summary so ONLY the summary shows (no half-cut tabs); the
   // two higher snaps reveal the tabs + content. % snaps adapt to all device sizes.
@@ -109,6 +123,11 @@ export default function PlayScreen() {
   const myName = user?.display_name || user?.username || 'You';
   const myArea = user?.home_neighbourhood || 'Bengaluru';
   const myHexes = user?.current_held_hexes ?? 0;
+
+  // Clan leaderboard is still mock (clans land next); Solo is REAL top players by points.
+  const leaderRows = isClan
+    ? MEMBERS.map((m) => ({ key: String(m.rank), rank: m.rank, name: m.name, points: m.points, sub: `${m.hexes} hexes`, you: !!m.you }))
+    : topPlayers.map((p, i) => ({ key: p.id || String(i), rank: i + 1, name: p.name, points: p.points, sub: `Level ${p.level}`, you: p.id === user?.id }));
 
   return (
     <View className="flex-1 bg-ink-50">
@@ -213,13 +232,13 @@ export default function PlayScreen() {
             {tab === 'Leaderboard' ? (
               <>
                 <Text className="mb-3 text-label-sm uppercase tracking-wide text-ink-600">
-                  {isClan ? 'Clan members by hexes' : 'Players near you'}
+                  {isClan ? 'Clan members by hexes' : 'Top players by points'}
                 </Text>
-                {MEMBERS.map((m) => {
+                {leaderRows.map((m) => {
                   const top3 = m.rank <= 3;
                   return (
                     <View
-                      key={m.rank}
+                      key={m.key}
                       className={`mb-2 flex-row items-center rounded-md px-3 py-3 ${m.you ? 'border border-saffron-600 bg-ink-200' : 'bg-ink-200'}`}
                     >
                       <Text
@@ -235,7 +254,7 @@ export default function PlayScreen() {
                           {m.points.toLocaleString('en-IN')}
                         </Text>
                         <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-sm text-ink-600">
-                          {m.hexes} hexes
+                          {m.sub}
                         </Text>
                       </View>
                     </View>
