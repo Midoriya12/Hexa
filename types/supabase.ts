@@ -102,28 +102,149 @@ export type Database = {
           },
         ]
       }
+      clan_join_requests: {
+        Row: {
+          clan_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          clan_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: never
+          status?: string
+          user_id: string
+        }
+        Update: {
+          clan_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: never
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clan_join_requests_clan_id_fkey"
+            columns: ["clan_id"]
+            isOneToOne: false
+            referencedRelation: "clans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clan_join_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clan_join_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clan_join_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clan_join_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clan_messages: {
+        Row: {
+          body: string
+          clan_id: string
+          created_at: string
+          id: number
+          user_id: string
+        }
+        Insert: {
+          body: string
+          clan_id: string
+          created_at?: string
+          id?: never
+          user_id: string
+        }
+        Update: {
+          body?: string
+          clan_id?: string
+          created_at?: string
+          id?: never
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clan_messages_clan_id_fkey"
+            columns: ["clan_id"]
+            isOneToOne: false
+            referencedRelation: "clans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clan_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clan_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clans: {
         Row: {
           colour: string
           created_at: string
+          description: string
           id: string
           member_count: number
+          min_hexes: number
+          min_points: number
           name: string
           owner_id: string | null
         }
         Insert: {
           colour?: string
           created_at?: string
+          description?: string
           id?: string
           member_count?: number
+          min_hexes?: number
+          min_points?: number
           name: string
           owner_id?: string | null
         }
         Update: {
           colour?: string
           created_at?: string
+          description?: string
           id?: string
           member_count?: number
+          min_hexes?: number
+          min_points?: number
           name?: string
           owner_id?: string | null
         }
@@ -285,6 +406,7 @@ export type Database = {
           banned_permanently: boolean | null
           banned_until: string | null
           clan_id: string | null
+          clan_role: string | null
           created_at: string | null
           current_held_hexes: number | null
           current_round_points: number | null
@@ -317,6 +439,7 @@ export type Database = {
           banned_permanently?: boolean | null
           banned_until?: string | null
           clan_id?: string | null
+          clan_role?: string | null
           created_at?: string | null
           current_held_hexes?: number | null
           current_round_points?: number | null
@@ -349,6 +472,7 @@ export type Database = {
           banned_permanently?: boolean | null
           banned_until?: string | null
           clan_id?: string | null
+          clan_role?: string | null
           created_at?: string | null
           current_held_hexes?: number | null
           current_round_points?: number | null
@@ -468,6 +592,7 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_join_request: { Args: { p_request_id: number }; Returns: Json }
       capture_hex: {
         Args: { p_h3: string; p_lat: number; p_lng: number }
         Returns: Json
@@ -491,13 +616,77 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      create_clan: { Args: { p_colour: string; p_name: string }; Returns: Json }
+      clan_roster: {
+        Args: { p_clan_id: string }
+        Returns: {
+          clan_role: string
+          current_round_points: number
+          display_name: string
+          hex_colour: string
+          id: string
+          level: number
+          username: string
+        }[]
+      }
+      clan_stats: {
+        Args: { p_clan_id: string }
+        Returns: {
+          clan_id: string
+          member_count: number
+          name: string
+          total_hexes: number
+          total_points: number
+        }[]
+      }
+      clans_leaderboard: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          clan_id: string
+          colour: string
+          member_count: number
+          name: string
+          rank: number
+          total_hexes: number
+          total_points: number
+        }[]
+      }
+      create_clan: {
+        Args: {
+          p_colour: string
+          p_description?: string
+          p_min_hexes?: number
+          p_min_points?: number
+          p_name: string
+        }
+        Returns: Json
+      }
+      disband_clan: { Args: never; Returns: Json }
       hexa_point_in_hex: {
         Args: { p_boundary: Json; p_lat: number; p_lng: number }
         Returns: boolean
       }
       join_clan: { Args: { p_clan_id: string }; Returns: Json }
+      kick_member: { Args: { p_target_user_id: string }; Returns: Json }
       leave_clan: { Args: never; Returns: Json }
+      request_to_join: { Args: { p_clan_id: string }; Returns: Json }
+      respond_join_request: {
+        Args: { p_accept: boolean; p_request_id: number }
+        Returns: Json
+      }
+      set_member_role: {
+        Args: { p_role: string; p_target_user_id: string }
+        Returns: Json
+      }
+      update_clan: {
+        Args: {
+          p_colour?: string
+          p_description?: string
+          p_min_hexes?: number
+          p_min_points?: number
+          p_name?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
