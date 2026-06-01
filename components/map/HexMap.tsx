@@ -76,6 +76,8 @@ interface HexMapProps {
   dot?: { lat: number; lng: number } | null;
   /** Walking route to the nearest hex (Start's crosshair), drawn as a dashed line. */
   route?: GeoJSON.LineString | null;
+  /** Tapping the map reports the nearest hex (Play uses this to open the hex-info card). */
+  onHexPress?: (h3: string) => void;
 }
 
 export interface HexMapHandle {
@@ -84,7 +86,7 @@ export interface HexMapHandle {
 }
 
 export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
-  { style, zoomLevel = 14, followUser = false, dot = null, route = null },
+  { style, zoomLevel = 14, followUser = false, dot = null, route = null, onHexPress },
   ref,
 ) {
   // Mapbox GL contends for a single drawing surface across MapView instances; with the tab
@@ -137,6 +139,30 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
 
   useImperativeHandle(ref, () => ({ flyToNearestHex }), [flyToNearestHex]);
 
+  // Tap the map → report the nearest hex (within ~100m) so the screen can show its info.
+  const handleMapPress = useCallback(
+    (feature: GeoJSON.Feature) => {
+      if (!onHexPress || feature.geometry?.type !== 'Point') return;
+      const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates;
+      const fc = useHexStore.getState().fc;
+      if (!fc) return;
+      const cosLat = Math.cos((lat * Math.PI) / 180);
+      let best: string | null = null;
+      let bestD = Infinity;
+      for (const f of fc.features) {
+        const dLat = f.properties.clat - lat;
+        const dLng = (f.properties.clng - lng) * cosLat;
+        const d = dLat * dLat + dLng * dLng;
+        if (d < bestD) {
+          bestD = d;
+          best = f.properties.h3;
+        }
+      }
+      if (best && Math.sqrt(bestD) * 111320 <= 100) onHexPress(best);
+    },
+    [onHexPress],
+  );
+
   // Smoothly follow the SMOOTHED dot (not raw GPS) so the camera glides instead of jittering;
   // setCamera without zoomLevel preserves the user's current zoom.
   useEffect(() => {
@@ -157,6 +183,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
         logoEnabled={false}
         attributionEnabled={false}
         compassEnabled={false}
+        onPress={onHexPress ? handleMapPress : undefined}
       >
         {/* Day/night lighting on the Standard basemap (bright & colourful by day, dark at night). */}
         <StyleImport id="basemap" existing config={{ lightPreset }} />

@@ -12,6 +12,7 @@ import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/com
 
 import { Avatar } from '@/components/ui';
 import { HexMap, type HexMapHandle } from '@/components/map/HexMap';
+import { HexInfo } from '@/components/map/HexInfo';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { colors } from '@/theme';
@@ -97,6 +98,7 @@ export default function PlayScreen() {
   const [tab, setTab] = useState('Leaderboard');
   const sheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<HexMapHandle>(null);
+  const [selectedHex, setSelectedHex] = useState<string | null>(null);
 
   // Peek snap is measured from the summary so ONLY the summary shows (no half-cut tabs); the
   // two higher snaps reveal the tabs + content. % snaps adapt to all device sizes.
@@ -111,7 +113,7 @@ export default function PlayScreen() {
   return (
     <View className="flex-1 bg-ink-50">
       {/* ── Live map (globe + zoom), full-bleed behind everything ── */}
-      <HexMap ref={mapRef} />
+      <HexMap ref={mapRef} onHexPress={setSelectedHex} />
 
       {/* ── Top mode bar (full width, neutral) ── */}
       <View style={{ paddingTop: insets.top + 8 }} className="px-4">
@@ -257,6 +259,8 @@ export default function PlayScreen() {
           </View>
         </BottomSheetScrollView>
       </BottomSheet>
+
+      <HexInfo h3={selectedHex} onClose={() => setSelectedHex(null)} />
     </View>
   );
 }
