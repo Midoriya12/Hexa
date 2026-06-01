@@ -1,9 +1,10 @@
 // Me — DARK profile/dashboard. Identity + level/XP, a stats dashboard (Round Points · Hexes
 // held · Rent/hr), the hex-colour picker (your captured hexes render in this colour), XP
 // challenges, and Friends/Medals. Settings opens from the gear. (Your-walks list is next.)
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import {
   IconBell,
   IconCamera,
@@ -20,10 +21,38 @@ import {
 } from '@/components/ui/Icon';
 
 import { Avatar, Badge } from '@/components/ui';
+import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { updateOwnUser } from '@/lib/supabase/auth';
+import { fetchMyWalks } from '@/lib/supabase/walks';
 import { useUserStore } from '@/stores/userStore';
 import { colors } from '@/theme';
+import type { WalkRow } from '@/types/database';
+
+const mmss = (sec: number) =>
+  `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+
+function WalkItem({ w }: { w: WalkRow }) {
+  const date = w.ended_at
+    ? new Date(w.ended_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : '—';
+  return (
+    <View className="flex-row items-center bg-ink-100 px-4 py-3">
+      <View className="flex-1">
+        <Text className="text-body-md text-ink-900">{date}</Text>
+        <Text className="text-label-sm text-ink-600">
+          {mmss(w.duration_s)} · {(w.distance_m / 1000).toFixed(2)} km
+        </Text>
+      </View>
+      <View className="flex-row items-center gap-1.5">
+        <HexIcon size={14} color={colors.saffron[600]} />
+        <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">
+          {w.hexes}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 const CHALLENGES = [
   { key: 'photo', title: 'Add a profile photo', xp: 10, Icon: IconCamera },
@@ -67,6 +96,19 @@ export default function MeScreen() {
   const hexes = user?.current_held_hexes ?? 0;
   const rentPerHr = hexes * 3; // flat PPH for now (rarity tiers + hourly engine = Phase 5)
   const myColour = user?.hex_colour || colors.player.saffron;
+
+  const [walks, setWalks] = useState<WalkRow[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      fetchMyWalks()
+        .then((w) => alive && setWalks(w))
+        .catch(() => undefined);
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   const pickColour = async (hex: string) => {
     if (!user?.id || hex === user.hex_colour) return;
@@ -155,6 +197,20 @@ export default function MeScreen() {
             </View>
           ))}
         </ScrollView>
+
+        {/* Your walks */}
+        <Text className="mb-3 mt-6 text-heading-md text-ink-900">Your walks</Text>
+        {walks.length === 0 ? (
+          <View className="rounded-md border border-ink-400 bg-ink-100 p-4">
+            <Text className="text-center text-body-sm text-ink-700">No walks yet — hit Start and capture a hex.</Text>
+          </View>
+        ) : (
+          <View className="divide-y divide-ink-400 overflow-hidden rounded-md border border-ink-400">
+            {walks.map((w) => (
+              <WalkItem key={w.id} w={w} />
+            ))}
+          </View>
+        )}
 
         {/* Friends + Medals */}
         <View className="mt-6 divide-y divide-ink-400 overflow-hidden rounded-md border border-ink-400">

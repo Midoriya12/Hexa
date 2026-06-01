@@ -16,6 +16,7 @@ import { CaptureSuccess } from '@/components/capture/CaptureSuccess';
 import { WalkSummary } from '@/components/capture/WalkSummary';
 import { useHexTracker } from '@/hooks/useHexTracker';
 import { getWalkingRoute } from '@/lib/directions';
+import { saveWalk } from '@/lib/supabase/walks';
 import { useHexStore } from '@/stores/hexStore';
 import { colors } from '@/theme';
 
@@ -93,12 +94,18 @@ export default function StartScreen() {
     setWalking(true);
   };
   const finish = () => {
-    setSummary({
+    const s = {
       durationSec,
       distanceM: tracker.distanceM,
       hexes: tracker.capturedCount,
       points: tracker.capturedCount * 100, // flat IP=100 for now
-    });
+    };
+    setSummary(s);
+    if (s.durationSec > 5) {
+      void saveWalk({ durationS: s.durationSec, distanceM: s.distanceM, hexes: s.hexes, points: s.points }).catch(
+        () => undefined,
+      );
+    }
     setWalking(false);
     setPaused(false);
     setDurationSec(0);

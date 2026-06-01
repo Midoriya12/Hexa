@@ -283,6 +283,51 @@ export type Database = {
         }
         Relationships: []
       }
+      walks: {
+        Row: {
+          distance_m: number
+          duration_s: number
+          ended_at: string
+          hexes: number
+          id: number
+          points: number
+          user_id: string
+        }
+        Insert: {
+          distance_m: number
+          duration_s: number
+          ended_at?: string
+          hexes: number
+          id?: never
+          points: number
+          user_id: string
+        }
+        Update: {
+          distance_m?: number
+          duration_s?: number
+          ended_at?: string
+          hexes?: number
+          id?: never
+          points?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "walks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "walks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       public_users: {

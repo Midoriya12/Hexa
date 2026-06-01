@@ -12,3 +12,6 @@ export type PublicUserRow = Tables<'public_users'>;
 
 /** One static playable H3 cell (seeded grid; clients read-only). */
 export type HexRow = Tables<'hexes'>;
+
+/** A finished walk session (owner-only personal log). */
+export type WalkRow = Tables<'walks'>;
