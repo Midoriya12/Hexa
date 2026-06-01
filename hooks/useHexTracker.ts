@@ -1,16 +1,20 @@
 // useHexTracker — the live capture loop for an active walk. While `active`, it watches the
-// foreground GPS, figures out which hex you're standing in, runs a level-scaled dwell timer
-// (you just have to stay IN the hex, not stand still — patch #39), and auto-calls capture_hex
+// foreground GPS, resolves which hex you're standing in from the in-memory grid (nearest cell
+// centre — H3 cells are ~Voronoi cells of their centres, so this is the containing cell), runs
+// a level-scaled dwell timer (you just stay IN the hex — patch #39), and auto-calls capture_hex
 // when the dwell completes. On success it flips the hex to 'you' on the shared map store and
-// refreshes your stats. Foreground only (Phase 9 adds background); deeper anti-cheat is Phase 8.
+// refreshes your stats. Foreground only (Phase 9 adds background); anti-cheat is Phase 8.
+//
+// h3-js is intentionally NOT imported here (it crashes Hermes via TextDecoder utf-16le); the
+// server still validates point-in-polygon against the true cell boundary.
 import { useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
-import { latLngToCell } from 'h3-js';
 
 import { captureHex } from '@/lib/capture';
 import { fetchOwnUser } from '@/lib/supabase/auth';
 import { useHexStore } from '@/stores/hexStore';
 import { useUserStore } from '@/stores/userStore';
+import type { HexFeatureProps } from '@/lib/supabase/hexes';
 
 export type TrackStatus =
   | 'idle'
@@ -34,10 +38,34 @@ export interface TrackState {
   message: string;
 }
 
+const EARTH_M_PER_DEG = 111_320;
+const HEX_REACH_M = 80; // res-10 circumradius ~75m + a little slack
+
+/** Nearest playable cell to a GPS point (its containing hex), or null if none within reach. */
+function nearestHex(lat: number, lng: number): { h3: string; owner: HexFeatureProps['owner'] } | null {
+  const fc = useHexStore.getState().fc;
+  if (!fc) return null;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  let best: HexFeatureProps | null = null;
+  let bestD = Infinity;
+  for (const f of fc.features) {
+    const dLat = f.properties.clat - lat;
+    const dLng = (f.properties.clng - lng) * cosLat;
+    const d = dLat * dLat + dLng * dLng;
+    if (d < bestD) {
+      bestD = d;
+      best = f.properties;
+    }
+  }
+  if (!best) return null;
+  const distM = Math.sqrt(bestD) * EARTH_M_PER_DEG;
+  if (distM > HEX_REACH_M) return null;
+  return { h3: best.h3, owner: best.owner };
+}
+
 export function useHexTracker(active: boolean): TrackState {
   const user = useUserStore((s) => s.user);
   const setUser = useUserStore((s) => s.setUser);
-  const ownerOf = useHexStore((s) => s.ownerOf);
   const setOwner = useHexStore((s) => s.setOwner);
 
   // Level-scaled dwell: 60s at L1 → 20s floor (patch #39).
@@ -100,33 +128,26 @@ export function useHexTracker(active: boolean): TrackState {
           }
           coordsRef.current = { lat: latitude, lng: longitude };
 
-          let h3: string;
-          try {
-            h3 = latLngToCell(latitude, longitude, 10);
-          } catch {
-            return;
-          }
-          const owner = ownerOf(h3);
-
-          if (owner === undefined) {
+          const hit = nearestHex(latitude, longitude);
+          if (!hit) {
             hexRef.current = null;
             dwellStartRef.current = null;
             setState((s) => ({ ...s, status: 'no_hex', accuracy, currentHex: null, dwellProgress: 0, message: 'Walk into a hex to capture it.' }));
             return;
           }
-          if (owner === 'you') {
+          if (hit.owner === 'you') {
             hexRef.current = null;
             dwellStartRef.current = null;
-            setState((s) => ({ ...s, status: 'owned', accuracy, currentHex: h3, dwellProgress: 0, message: 'You already hold this hex.' }));
+            setState((s) => ({ ...s, status: 'owned', accuracy, currentHex: hit.h3, dwellProgress: 0, message: 'You already hold this hex.' }));
             return;
           }
           // Capturable ('none' or 'other'): start/continue the dwell.
-          if (hexRef.current !== h3) {
-            hexRef.current = h3;
+          if (hexRef.current !== hit.h3) {
+            hexRef.current = hit.h3;
             dwellStartRef.current = Date.now();
-            setState((s) => ({ ...s, status: 'dwelling', accuracy, currentHex: h3, dwellProgress: 0, message: 'Hold this hex…' }));
+            setState((s) => ({ ...s, status: 'dwelling', accuracy, currentHex: hit.h3, dwellProgress: 0, message: 'Hold this hex…' }));
           } else {
-            setState((s) => ({ ...s, accuracy, currentHex: h3 }));
+            setState((s) => ({ ...s, accuracy, currentHex: hit.h3 }));
           }
         },
         (reason) => {
@@ -150,7 +171,7 @@ export function useHexTracker(active: boolean): TrackState {
         // Dwell complete → capture.
         capturingRef.current = true;
         setState((s) => ({ ...s, status: 'capturing', dwellProgress: 1, message: 'Capturing…' }));
-        const res = await captureHex(coords.lat, coords.lng);
+        const res = await captureHex(h3, coords.lat, coords.lng);
         if (cancelled) {
           capturingRef.current = false;
           return;
@@ -177,7 +198,6 @@ export function useHexTracker(active: boolean): TrackState {
             }
           }
         } else {
-          // Reset the dwell so it can retry; cooldown waits for the next hex.
           dwellStartRef.current = res.error === 'cooldown' ? null : Date.now();
           const message =
             res.error === 'outside_hex'
@@ -196,7 +216,7 @@ export function useHexTracker(active: boolean): TrackState {
       sub?.remove();
       if (interval) clearInterval(interval);
     };
-  }, [active, dwellMs, myId, ownerOf, setOwner, setUser]);
+  }, [active, dwellMs, myId, setOwner, setUser]);
 
   return { ...state, dwellSec };
 }
