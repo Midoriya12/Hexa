@@ -23,6 +23,7 @@ import { useIsFocused } from 'expo-router';
 import * as Location from 'expo-location';
 import Mapbox, {
   Camera,
+  CircleLayer,
   FillLayer,
   LineLayer,
   LocationPuck,
@@ -71,6 +72,8 @@ interface HexMapProps {
   zoomLevel?: number;
   /** Follow + centre on the user's live location (used on the Start/active-walk screen). */
   followUser?: boolean;
+  /** Smoothed [lat,lng] for the on-map dot + camera follow (from useHexTracker). */
+  dot?: { lat: number; lng: number } | null;
 }
 
 export interface HexMapHandle {
@@ -79,7 +82,7 @@ export interface HexMapHandle {
 }
 
 export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
-  { style, zoomLevel = 14, followUser = false },
+  { style, zoomLevel = 14, followUser = false, dot = null },
   ref,
 ) {
   // Mapbox GL contends for a single drawing surface across MapView instances; with the tab
@@ -131,6 +134,14 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
 
   useImperativeHandle(ref, () => ({ flyToNearestHex }), [flyToNearestHex]);
 
+  // Smoothly follow the SMOOTHED dot (not raw GPS) so the camera glides instead of jittering;
+  // setCamera without zoomLevel preserves the user's current zoom.
+  useEffect(() => {
+    if (followUser && dot) {
+      cameraRef.current?.setCamera({ centerCoordinate: [dot.lng, dot.lat], animationDuration: 1200 });
+    }
+  }, [followUser, dot?.lat, dot?.lng]);
+
   if (!isFocused) return null;
 
   return (
@@ -147,19 +158,28 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
         {/* Day/night lighting on the Standard basemap (bright & colourful by day, dark at night). */}
         <StyleImport id="basemap" existing config={{ lightPreset }} />
 
-        {followUser ? (
-          <Camera followUserLocation followZoomLevel={zoomLevel} minZoomLevel={0.5} maxZoomLevel={19} />
-        ) : (
-          <Camera
-            ref={cameraRef}
-            defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
-            minZoomLevel={0.5}
-            maxZoomLevel={19}
-          />
-        )}
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
+          minZoomLevel={0.5}
+          maxZoomLevel={19}
+        />
 
-        {/* "You are here" puck (needs location permission, granted by the capture tracker). */}
-        <LocationPuck />
+        {/* Smoothed "you are here" dot when a position is supplied (Start); else the default puck. */}
+        {dot ? (
+          <ShapeSource
+            id="meSource"
+            shape={{ type: 'Feature', geometry: { type: 'Point', coordinates: [dot.lng, dot.lat] }, properties: {} }}
+          >
+            <CircleLayer id="meHalo" style={{ circleRadius: 16, circleColor: '#2E86FF', circleOpacity: 0.18 }} />
+            <CircleLayer
+              id="meDot"
+              style={{ circleRadius: 7, circleColor: '#2E86FF', circleStrokeWidth: 2, circleStrokeColor: '#FFFFFF' }}
+            />
+          </ShapeSource>
+        ) : (
+          <LocationPuck />
+        )}
 
         {fc ? (
           <ShapeSource id="hexSource" shape={fc} tolerance={0.5}>

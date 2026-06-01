@@ -102,7 +102,7 @@ export default function StartScreen() {
 
   return (
     <View className="flex-1 bg-ink-50">
-      <HexMap followUser />
+      <HexMap followUser dot={tracker.position} />
 
       {/* ── TOP dwell progress bar (prominent — so capture never feels random) ── */}
       {walking && dwelling ? (

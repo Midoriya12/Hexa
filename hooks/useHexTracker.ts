@@ -1,9 +1,9 @@
 // useHexTracker — the live capture loop for an active walk. While `active`, it watches the
-// foreground GPS, resolves which hex you're standing in from the in-memory grid (nearest cell
-// centre — H3 cells are ~Voronoi cells of their centres, so this is the containing cell), runs
-// a level-scaled dwell timer (you just stay IN the hex — patch #39), and auto-calls capture_hex
-// when the dwell completes. On success it flips the hex to 'you' on the shared map store and
-// refreshes your stats. Foreground only (Phase 9 adds background); anti-cheat is Phase 8.
+// foreground GPS, SMOOTHS the position (EMA, with hard damping on big spikes) to calm GPS
+// wiggle, resolves which hex you're standing in from the in-memory grid (nearest cell centre),
+// runs a level-scaled dwell timer (you just stay IN the hex — patch #39) with boundary
+// hysteresis, and auto-calls capture_hex when the dwell completes. The smoothed point drives the
+// dot, distance, hex detection and capture, so everything is stable + consistent.
 //
 // h3-js is intentionally NOT imported here (it crashes Hermes via TextDecoder utf-16le); the
 // server still validates point-in-polygon against the true cell boundary.
@@ -36,6 +36,8 @@ export interface TrackState {
   dwellSec: number;
   capturedCount: number;
   distanceM: number;
+  /** Smoothed position [lat,lng] for the on-map dot + camera (null until the first good fix). */
+  position: { lat: number; lng: number } | null;
   /** Set on each successful capture (drives the success card); cleared on a new session. */
   lastCapture: { ip: number; pph: number; h3: string; nonce: number } | null;
   message: string;
@@ -44,6 +46,8 @@ export interface TrackState {
 const EARTH_M_PER_DEG = 111_320;
 const HEX_REACH_M = 80; // res-10 circumradius ~75m + a little slack
 const FLAT_PPH = 3; // common-hex rent/hr (rarity tiers + the hourly engine come in Phase 5)
+const SMOOTH_ALPHA = 0.25; // EMA weight for a normal fix
+const SPIKE_M = 40; // a jump bigger than this is treated as a GPS spike and damped hard
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -55,7 +59,7 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-/** Nearest playable cell to a GPS point (its containing hex), or null if none within reach. */
+/** Nearest playable cell to a point (its containing hex), or null if none within reach. */
 function nearestHex(lat: number, lng: number): { h3: string; owner: HexFeatureProps['owner'] } | null {
   const fc = useHexStore.getState().fc;
   if (!fc) return null;
@@ -72,8 +76,7 @@ function nearestHex(lat: number, lng: number): { h3: string; owner: HexFeaturePr
     }
   }
   if (!best) return null;
-  const distM = Math.sqrt(bestD) * EARTH_M_PER_DEG;
-  if (distM > HEX_REACH_M) return null;
+  if (Math.sqrt(bestD) * EARTH_M_PER_DEG > HEX_REACH_M) return null;
   return { h3: best.h3, owner: best.owner };
 }
 
@@ -102,11 +105,13 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
     dwellSec,
     capturedCount: 0,
     distanceM: 0,
+    position: null,
     lastCapture: null,
     message: '',
   });
 
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const smoothRef = useRef<{ lat: number; lng: number } | null>(null);
   const lastFixRef = useRef<{ lat: number; lng: number } | null>(null);
   const hexRef = useRef<string | null>(null);
   const dwellStartRef = useRef<number | null>(null);
@@ -115,12 +120,13 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
   const distanceRef = useRef(0);
   const captureNonceRef = useRef(0);
 
-  // New session (a fresh Start, not a pause/resume) → zero the counters.
+  // New session (a fresh Start, not a pause/resume) → zero the counters + smoothing.
   useEffect(() => {
     countRef.current = 0;
     distanceRef.current = 0;
     lastFixRef.current = null;
-    setState((s) => ({ ...s, capturedCount: 0, distanceM: 0, lastCapture: null }));
+    smoothRef.current = null;
+    setState((s) => ({ ...s, capturedCount: 0, distanceM: 0, lastCapture: null, position: null }));
   }, [sessionKey]);
 
   useEffect(() => {
@@ -128,7 +134,7 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
       hexRef.current = null;
       dwellStartRef.current = null;
       coordsRef.current = null;
-      lastFixRef.current = null; // so resume doesn't count a phantom step from the pause point
+      lastFixRef.current = null;
       setState((s) => ({ ...s, status: 'idle', currentHex: null, dwellProgress: 0, message: '' }));
       return;
     }
@@ -149,8 +155,8 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
       sub = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Highest,
-          distanceInterval: 4,
-          timeInterval: 2000,
+          distanceInterval: 3,
+          timeInterval: 1500,
           mayShowUserSettingsDialog: true,
         },
         (loc) => {
@@ -160,50 +166,61 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
             setState((s) => ({ ...s, status: 'low_accuracy', accuracy, message: 'Improving GPS signal…' }));
             return;
           }
-          coordsRef.current = { lat: latitude, lng: longitude };
 
-          // Accumulate walk distance (ignore sub-metre noise + >50m GPS jumps).
+          // Smooth (EMA); damp big spikes hard so a noisy fix barely nudges the dot.
+          const prev = smoothRef.current;
+          let lat = latitude;
+          let lng = longitude;
+          if (prev) {
+            const jump = haversineM(prev.lat, prev.lng, latitude, longitude);
+            const a = jump > SPIKE_M ? 0.1 : SMOOTH_ALPHA;
+            lat = prev.lat + a * (latitude - prev.lat);
+            lng = prev.lng + a * (longitude - prev.lng);
+          }
+          smoothRef.current = { lat, lng };
+          coordsRef.current = { lat, lng };
+          setState((s) => ({ ...s, accuracy, position: { lat, lng } }));
+
+          // Accumulate distance from the smoothed track (ignore sub-metre noise + >50m jumps).
           if (lastFixRef.current) {
-            const step = haversineM(lastFixRef.current.lat, lastFixRef.current.lng, latitude, longitude);
+            const step = haversineM(lastFixRef.current.lat, lastFixRef.current.lng, lat, lng);
             if (step > 1 && step < 50) {
               distanceRef.current += step;
               setState((s) => ({ ...s, distanceM: distanceRef.current }));
             }
           }
-          lastFixRef.current = { lat: latitude, lng: longitude };
+          lastFixRef.current = { lat, lng };
 
-          // Hysteresis: if mid-dwell and still within reach of THAT hex, keep it — GPS jitter near
-          // a cell boundary must not reset the timer. (Nearest-centre is already jitter-stable;
-          // this covers the edge case of standing right on a boundary.)
+          // Hysteresis: keep the current dwell hex while still within reach (boundary jitter
+          // must not reset the timer).
           const cur = hexRef.current;
           if (cur) {
             const p = getHexProps(cur);
-            if (p && p.owner !== 'you' && haversineM(latitude, longitude, p.clat, p.clng) <= HEX_REACH_M) {
-              setState((s) => ({ ...s, accuracy, currentHex: cur }));
+            if (p && p.owner !== 'you' && haversineM(lat, lng, p.clat, p.clng) <= HEX_REACH_M) {
+              setState((s) => ({ ...s, currentHex: cur }));
               return;
             }
           }
 
-          const hit = nearestHex(latitude, longitude);
+          const hit = nearestHex(lat, lng);
           if (!hit) {
             hexRef.current = null;
             dwellStartRef.current = null;
-            setState((s) => ({ ...s, status: 'no_hex', accuracy, currentHex: null, dwellProgress: 0, message: 'Walk into a hex to capture it.' }));
+            setState((s) => ({ ...s, status: 'no_hex', currentHex: null, dwellProgress: 0, message: 'Walk into a hex to capture it.' }));
             return;
           }
           if (hit.owner === 'you') {
             hexRef.current = null;
             dwellStartRef.current = null;
-            setState((s) => ({ ...s, status: 'owned', accuracy, currentHex: hit.h3, dwellProgress: 0, message: 'You already hold this hex.' }));
+            setState((s) => ({ ...s, status: 'owned', currentHex: hit.h3, dwellProgress: 0, message: 'You already hold this hex.' }));
             return;
           }
-          // Capturable ('none' or 'other'): start/continue the dwell.
           if (hexRef.current !== hit.h3) {
             hexRef.current = hit.h3;
             dwellStartRef.current = Date.now();
-            setState((s) => ({ ...s, status: 'dwelling', accuracy, currentHex: hit.h3, dwellProgress: 0, message: 'Hold this hex…' }));
+            setState((s) => ({ ...s, status: 'dwelling', currentHex: hit.h3, dwellProgress: 0, message: 'Hold this hex…' }));
           } else {
-            setState((s) => ({ ...s, accuracy, currentHex: hit.h3 }));
+            setState((s) => ({ ...s, currentHex: hit.h3 }));
           }
         },
         (reason) => {
