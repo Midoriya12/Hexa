@@ -102,6 +102,101 @@ export type Database = {
           },
         ]
       }
+      clans: {
+        Row: {
+          colour: string
+          created_at: string
+          id: string
+          member_count: number
+          name: string
+          owner_id: string | null
+        }
+        Insert: {
+          colour?: string
+          created_at?: string
+          id?: string
+          member_count?: number
+          name: string
+          owner_id?: string | null
+        }
+        Update: {
+          colour?: string
+          created_at?: string
+          id?: string
+          member_count?: number
+          name?: string
+          owner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clans_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clans_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      friendships: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: number
+          requester_id: string
+          status: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: never
+          requester_id: string
+          status?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: never
+          requester_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friendships_addressee_id_fkey"
+            columns: ["addressee_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendships_addressee_id_fkey"
+            columns: ["addressee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendships_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendships_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hex_ownership: {
         Row: {
           captured_at: string
@@ -281,7 +376,15 @@ export type Database = {
           username?: string | null
           vacation_tokens_available?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_clan_id_fkey"
+            columns: ["clan_id"]
+            isOneToOne: false
+            referencedRelation: "clans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       walks: {
         Row: {
@@ -369,10 +472,32 @@ export type Database = {
         Args: { p_h3: string; p_lat: number; p_lng: number }
         Returns: Json
       }
+      clan_members: {
+        Args: { p_clan_id: string }
+        Returns: {
+          avatar_url: string | null
+          current_round_points: number | null
+          display_name: string | null
+          ghost_mode: boolean | null
+          hex_colour: string | null
+          id: string | null
+          level: number | null
+          username: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "public_users"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      create_clan: { Args: { p_colour: string; p_name: string }; Returns: Json }
       hexa_point_in_hex: {
         Args: { p_boundary: Json; p_lat: number; p_lng: number }
         Returns: boolean
       }
+      join_clan: { Args: { p_clan_id: string }; Returns: Json }
+      leave_clan: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

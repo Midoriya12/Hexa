@@ -14,15 +14,18 @@ export interface FeedItem {
   stolen: boolean;
 }
 
-export async function fetchFeed(limit = 40): Promise<FeedItem[]> {
-  const { data: caps, error } = await supabase
-    .from('captures')
-    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at')
-    .order('captured_at', { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  if (!caps?.length) return [];
+interface CaptureRow {
+  id: number;
+  h3_index: string;
+  user_id: string;
+  prev_owner_id: string | null;
+  ip_awarded: number;
+  captured_at: string;
+}
 
+/** Resolve capture rows → feed items (capturer name + hex neighbourhood). Shared by both feeds. */
+async function mapCaptures(caps: CaptureRow[]): Promise<FeedItem[]> {
+  if (!caps.length) return [];
   const userIds = [...new Set(caps.map((c) => c.user_id))];
   const h3s = [...new Set(caps.map((c) => c.h3_index))];
   const [{ data: users }, { data: hexes }] = await Promise.all([
@@ -31,7 +34,6 @@ export async function fetchFeed(limit = 40): Promise<FeedItem[]> {
   ]);
   const uMap = new Map((users ?? []).map((u) => [u.id, u]));
   const hMap = new Map((hexes ?? []).map((h) => [h.h3_index, h.neighbourhood]));
-
   return caps.map((c) => {
     const u = uMap.get(c.user_id);
     return {
@@ -45,4 +47,36 @@ export async function fetchFeed(limit = 40): Promise<FeedItem[]> {
       stolen: !!c.prev_owner_id,
     };
   });
+}
+
+export async function fetchFeed(limit = 40): Promise<FeedItem[]> {
+  const { data: caps, error } = await supabase
+    .from('captures')
+    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at')
+    .order('captured_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return mapCaptures(caps ?? []);
+}
+
+/** Following feed — captures by your accepted friends. */
+export async function fetchFollowingFeed(limit = 40): Promise<FeedItem[]> {
+  const { data: s } = await supabase.auth.getSession();
+  const uid = s.session?.user.id;
+  if (!uid) return [];
+  const { data: rows } = await supabase
+    .from('friendships')
+    .select('requester_id, addressee_id')
+    .eq('status', 'accepted')
+    .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+  const friendIds = (rows ?? []).map((r) => (r.requester_id === uid ? r.addressee_id : r.requester_id));
+  if (!friendIds.length) return [];
+  const { data: caps, error } = await supabase
+    .from('captures')
+    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at')
+    .in('user_id', friendIds)
+    .order('captured_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return mapCaptures(caps ?? []);
 }

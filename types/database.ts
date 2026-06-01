@@ -15,3 +15,9 @@ export type HexRow = Tables<'hexes'>;
 
 /** A finished walk session (owner-only personal log). */
 export type WalkRow = Tables<'walks'>;
+
+/** A clan (read-only to clients; mutated via create/join/leave RPCs). */
+export type ClanRow = Tables<'clans'>;
+
+/** A friendship row (pending/accepted; plain RLS'd). */
+export type FriendshipRow = Tables<'friendships'>;
