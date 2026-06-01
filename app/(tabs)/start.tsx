@@ -3,8 +3,9 @@
 // hex auto-captures (success card with confetti + points), and Finish shows a walk summary.
 // Pause/Resume freezes the session; a new Start resets it. Duration + Distance + Hexes are live.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 
 import { Button } from '@/components/ui';
@@ -14,13 +15,18 @@ import { IconStack, IconTarget } from '@/components/ui/Icon';
 import { CaptureSuccess } from '@/components/capture/CaptureSuccess';
 import { WalkSummary } from '@/components/capture/WalkSummary';
 import { useHexTracker } from '@/hooks/useHexTracker';
+import { getWalkingRoute } from '@/lib/directions';
+import { useHexStore } from '@/stores/hexStore';
 import { colors } from '@/theme';
 
-function ControlButton({ children }: { children: React.ReactNode }) {
+function ControlButton({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) {
   return (
-    <View className="mb-3 h-11 w-11 items-center justify-center rounded-full border border-ink-400 bg-ink-100">
+    <Pressable
+      onPress={onPress}
+      className="mb-3 h-11 w-11 items-center justify-center rounded-full border border-ink-400 bg-ink-100"
+    >
       {children}
-    </View>
+    </Pressable>
   );
 }
 
@@ -54,6 +60,7 @@ export default function StartScreen() {
     points: number;
   } | null>(null);
   const [card, setCard] = useState<{ ip: number; pph: number } | null>(null);
+  const [route, setRoute] = useState<GeoJSON.LineString | null>(null);
   const seenNonce = useRef(0);
 
   const sheetRef = useRef<BottomSheet>(null);
@@ -82,6 +89,7 @@ export default function StartScreen() {
     setDurationSec(0);
     setPaused(false);
     setSummary(null);
+    setRoute(null);
     setWalking(true);
   };
   const finish = () => {
@@ -94,7 +102,44 @@ export default function StartScreen() {
     setWalking(false);
     setPaused(false);
     setDurationSec(0);
+    setRoute(null);
     setSessionKey((k) => k + 1); // reset tracker distance/hexes so the next walk starts at 0
+  };
+
+  // Crosshair → draw a walking route to the nearest hex you're not already standing in.
+  const routeToNearest = async () => {
+    let me = tracker.position;
+    if (!me) {
+      try {
+        const granted =
+          (await Location.getForegroundPermissionsAsync()).granted ||
+          (await Location.requestForegroundPermissionsAsync()).granted;
+        if (granted) {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          me = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!me) return;
+    const fc = useHexStore.getState().fc;
+    if (!fc) return;
+    const cosLat = Math.cos((me.lat * Math.PI) / 180);
+    let best: { clat: number; clng: number } | null = null;
+    let bestD = Infinity;
+    for (const f of fc.features) {
+      const dLat = f.properties.clat - me.lat;
+      const dLng = (f.properties.clng - me.lng) * cosLat;
+      const d = dLat * dLat + dLng * dLng;
+      if (Math.sqrt(d) * 111320 < 50) continue; // skip the cell you're already in
+      if (d < bestD) {
+        bestD = d;
+        best = { clat: f.properties.clat, clng: f.properties.clng };
+      }
+    }
+    if (!best) return;
+    setRoute(await getWalkingRoute([me.lng, me.lat], [best.clng, best.clat]));
   };
 
   const dwelling = tracker.status === 'dwelling' || tracker.status === 'capturing';
@@ -102,7 +147,7 @@ export default function StartScreen() {
 
   return (
     <View className="flex-1 bg-ink-50">
-      <HexMap followUser dot={tracker.position} />
+      <HexMap followUser dot={tracker.position} route={route} />
 
       {/* ── TOP dwell progress bar (prominent — so capture never feels random) ── */}
       {walking && dwelling ? (
@@ -121,7 +166,7 @@ export default function StartScreen() {
 
       {/* ── Floating controls (right) ── */}
       <View style={{ position: 'absolute', right: 16, top: insets.top + 56 }}>
-        <ControlButton>
+        <ControlButton onPress={routeToNearest}>
           <IconTarget size={20} color={colors.ink[900]} />
         </ControlButton>
         <ControlButton>
