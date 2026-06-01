@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { IconChevronLeft, IconSearch, IconUserPlus } from '@/components/ui/Icon';
 
 import { Avatar, Badge, Button } from '@/components/ui';
@@ -140,7 +140,11 @@ export default function FriendsScreen() {
           <Text className="text-body-sm text-ink-700">No friends yet — search a username above to add one.</Text>
         ) : (
           friends.map((f) => (
-            <View key={f.id} className="mb-2 flex-row items-center rounded-md bg-ink-100 p-3">
+            <Pressable
+              key={f.id}
+              onPress={() => router.push(`/u/${f.id}` as Href)}
+              className="mb-2 flex-row items-center rounded-md bg-ink-100 p-3"
+            >
               <Avatar size={48} name={f.name} />
               <View className="ml-3 flex-1">
                 <Text className="text-heading-sm text-ink-900">{f.name}</Text>
@@ -152,7 +156,7 @@ export default function FriendsScreen() {
               <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">
                 {f.points.toLocaleString('en-IN')}
               </Text>
-            </View>
+            </Pressable>
           ))
         )}
       </ScrollView>

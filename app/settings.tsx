@@ -1,7 +1,7 @@
 // Settings — INTVL's "Me menu" screen, DARK to match Feed/Me: profile header, saffron
 // "Refer a friend" gradient card, grouped rows, sign out + delete. Dropped "Plans &
 // purchases" (no in-app purchases — PROGA). Sign out is functional.
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -21,6 +21,7 @@ import {
 
 import { Button } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { updateOwnUser } from '@/lib/supabase/auth';
 import { useUserStore } from '@/stores/userStore';
 import { colors } from '@/theme';
 
@@ -43,7 +44,19 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useCurrentUser();
   const signOut = useUserStore((s) => s.signOut);
+  const setUser = useUserStore((s) => s.setUser);
   const ic = (Icon: typeof IconPencil) => <Icon size={22} color={colors.ink[600]} />;
+
+  const ghost = !!user?.ghost_mode;
+  const toggleGhost = async (v: boolean) => {
+    if (!user?.id) return;
+    setUser({ ...user, ghost_mode: v }); // optimistic
+    try {
+      setUser(await updateOwnUser(user.id, { ghost_mode: v }));
+    } catch {
+      /* keep optimistic */
+    }
+  };
 
   const confirmSignOut = () =>
     Alert.alert('Sign out?', 'You can sign back in with your phone number.', [
@@ -91,6 +104,21 @@ export default function SettingsScreen() {
         <Row icon={ic(IconHelpCircle)} label="FAQs" onPress={() => undefined} />
         <Row icon={ic(IconMessageCircle)} label="Support" onPress={() => undefined} />
         <Row icon={ic(IconNews)} label="App change log" onPress={() => undefined} />
+
+        {/* Ghost mode — privacy toggle */}
+        <View className="mb-3 flex-row items-center rounded-md border border-ink-400 bg-ink-100 px-4 py-4">
+          <View className="w-7">{ic(IconShieldLock)}</View>
+          <View className="ml-2 flex-1">
+            <Text className="text-body-lg text-ink-900">Ghost mode</Text>
+            <Text className="text-body-sm text-ink-700">Hide me from feeds & leaderboards</Text>
+          </View>
+          <Switch
+            value={ghost}
+            onValueChange={toggleGhost}
+            trackColor={{ false: colors.ink[400], true: colors.saffron[600] }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
 
         <View className="mt-2 gap-3">
           <Button label="Sign out" variant="danger" onPress={confirmSignOut} />

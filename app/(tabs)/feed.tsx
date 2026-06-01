@@ -11,7 +11,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { fetchFeed, fetchFollowingFeed, type FeedItem } from '@/lib/supabase/feed';
 import { colors } from '@/theme';
 
-const TABS = ['Explore', 'Following'] as const;
+const TABS = ['Explore', 'Friends'] as const;
 
 function ago(iso: string): string {
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -22,9 +22,9 @@ function ago(iso: string): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
-function FeedRow({ item }: { item: FeedItem }) {
+function FeedRow({ item, onPress }: { item: FeedItem; onPress: () => void }) {
   return (
-    <View className="mb-4 flex-row items-center">
+    <Pressable className="mb-4 flex-row items-center" onPress={onPress}>
       <View>
         <Avatar size={48} name={item.name} />
         <View className="absolute -bottom-1 left-0.5 rounded-full bg-ink-50 px-1.5 py-0.5">
@@ -45,7 +45,7 @@ function FeedRow({ item }: { item: FeedItem }) {
           +{item.ip}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -98,7 +98,7 @@ export default function FeedScreen() {
           <IconChevronRight size={20} color={colors.ink[600]} />
         </Pressable>
 
-        {tab === 'Following' ? (
+        {tab === 'Friends' ? (
           following.length === 0 ? (
             <View className="items-center py-16">
               <Text className="text-center text-body-md text-ink-700">No captures from friends yet.</Text>
@@ -107,7 +107,7 @@ export default function FeedScreen() {
               </Pressable>
             </View>
           ) : (
-            following.map((it) => <FeedRow key={it.id} item={it} />)
+            following.map((it) => <FeedRow key={it.id} item={it} onPress={() => router.push(`/u/${it.userId}` as Href)} />)
           )
         ) : items.length === 0 ? (
           <View className="items-center py-16">
@@ -115,7 +115,7 @@ export default function FeedScreen() {
             <Text className="mt-1 text-center text-body-sm text-ink-600">Go to Start and take your first hex!</Text>
           </View>
         ) : (
-          items.map((it) => <FeedRow key={it.id} item={it} />)
+          items.map((it) => <FeedRow key={it.id} item={it} onPress={() => router.push(`/u/${it.userId}` as Href)} />)
         )}
       </ScrollView>
     </SafeAreaView>

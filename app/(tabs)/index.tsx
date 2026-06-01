@@ -132,13 +132,14 @@ export default function PlayScreen() {
   const leaderRows = isClan
     ? clanMembers.map((m, i) => ({
         key: m.id,
+        id: m.id,
         rank: i + 1,
         name: m.name,
         points: m.points,
         sub: m.isOwner ? 'Owner' : `Level ${m.level}`,
         you: m.you,
       }))
-    : topPlayers.map((p, i) => ({ key: p.id || String(i), rank: i + 1, name: p.name, points: p.points, sub: `Level ${p.level}`, you: p.id === user?.id }));
+    : topPlayers.map((p, i) => ({ key: p.id || String(i), id: p.id, rank: i + 1, name: p.name, points: p.points, sub: `Level ${p.level}`, you: p.id === user?.id }));
 
   return (
     <View className="flex-1 bg-ink-50">
@@ -265,8 +266,9 @@ export default function PlayScreen() {
                 {leaderRows.map((m) => {
                   const top3 = m.rank <= 3;
                   return (
-                    <View
+                    <Pressable
                       key={m.key}
+                      onPress={() => m.id && router.push(`/u/${m.id}` as Href)}
                       className={`mb-2 flex-row items-center rounded-md px-3 py-3 ${m.you ? 'border border-saffron-600 bg-ink-200' : 'bg-ink-200'}`}
                     >
                       <Text
@@ -285,7 +287,7 @@ export default function PlayScreen() {
                           {m.sub}
                         </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </>

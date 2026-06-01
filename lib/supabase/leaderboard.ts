@@ -14,6 +14,7 @@ export async function fetchTopPlayers(limit = 50): Promise<LeaderPlayer[]> {
   const { data, error } = await supabase
     .from('public_users')
     .select('id, display_name, username, level, current_round_points, hex_colour')
+    .not('ghost_mode', 'is', true) // keep false + null; hide only ghost-mode players
     .order('current_round_points', { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) throw error;
