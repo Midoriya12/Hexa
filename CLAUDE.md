@@ -305,6 +305,8 @@ If the design spec doesn't cover something needed, ASK — do not guess and do n
 
     **OPEN UI GAP (not in spec):** there is no defined screen for a player's **total PPH/rent income** or a prominent **Round-Points** display. `current_round_points` is stored but not surfaced. Decide placement (Me header / Play "Territories" tab / a stats card) when building Step C/D.
 
+42. **[PATCHED] Capture-session UX + placements (Sai, 2026-06-01).** Built: **Pause/Resume** + **Finish→walk-summary** (duration/distance/hexes) + live distance, a **top-of-screen dwell progress bar** + countdown, and a **CaptureSuccess card** (confetti + Instant Points + rent/hr + Share) — `components/capture/*`, `useHexTracker` (distanceM, lastCapture, sessionKey reset), Start screen. `scripts/add-home-hex.mjs` seeds a hex patch at a coord/geocode (bypasses the OSM filter) for at-home testing. **Placement decisions:** (a) **past walks → Me screen "Your walks" list**; (b) **points + total rent/hr → Me dashboard AND a points column on leaderboards** (resolves the gap above). **QUEUED (next, per Sai's directives):** player-chosen **hex colour** (picker on Me, 8 swatches; owned hexes render in `users.hex_colour` not hardcoded saffron); move **find-nearest-hex to Start** + draw a **walking route line** to it (Mapbox Directions — reverses patch #41 "no turn-by-turn"); **tap a hex → owner + stats card**; persist walks; shareable **image** card (later polish).
+
 ---
 
 **[NEW IN v3 SPEC]** — patches below this line specifically correct the v3 design spec (delivered 2026-05-29). _None yet._
