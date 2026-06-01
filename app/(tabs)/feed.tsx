@@ -3,12 +3,12 @@
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { IconBell, IconChevronRight, IconTrophy } from '@/components/ui/Icon';
 
 import { Avatar } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { fetchFeed, type FeedItem } from '@/lib/supabase/feed';
+import { fetchFeed, fetchFollowingFeed, type FeedItem } from '@/lib/supabase/feed';
 import { colors } from '@/theme';
 
 const TABS = ['Explore', 'Following'] as const;
@@ -52,13 +52,18 @@ function FeedRow({ item }: { item: FeedItem }) {
 export default function FeedScreen() {
   const [tab, setTab] = useState<string>('Explore');
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [following, setFollowing] = useState<FeedItem[]>([]);
   const { user } = useCurrentUser();
+  const router = useRouter();
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       fetchFeed()
         .then((f) => alive && setItems(f))
+        .catch(() => undefined);
+      fetchFollowingFeed()
+        .then((f) => alive && setFollowing(f))
         .catch(() => undefined);
       return () => {
         alive = false;
@@ -94,12 +99,16 @@ export default function FeedScreen() {
         </Pressable>
 
         {tab === 'Following' ? (
-          <View className="items-center py-16">
-            <Text className="text-center text-body-md text-ink-700">
-              Add friends to see their captures here.
-            </Text>
-            <Text className="mt-1 text-center text-body-sm text-ink-600">Friends arrive in the next update.</Text>
-          </View>
+          following.length === 0 ? (
+            <View className="items-center py-16">
+              <Text className="text-center text-body-md text-ink-700">No captures from friends yet.</Text>
+              <Pressable className="mt-3" onPress={() => router.push('/friends' as Href)}>
+                <Text className="text-center text-body-md font-semibold text-saffron-600">Add friends →</Text>
+              </Pressable>
+            </View>
+          ) : (
+            following.map((it) => <FeedRow key={it.id} item={it} />)
+          )
         ) : items.length === 0 ? (
           <View className="items-center py-16">
             <Text className="text-center text-body-md text-ink-700">No captures yet.</Text>

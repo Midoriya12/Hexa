@@ -7,7 +7,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/components/ui/Icon';
 
@@ -17,19 +17,10 @@ import { HexInfo } from '@/components/map/HexInfo';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { fetchTopPlayers, type LeaderPlayer } from '@/lib/supabase/leaderboard';
+import { fetchClanMembers, fetchMyClan, type Clan, type ClanMember } from '@/lib/supabase/clans';
 import { colors } from '@/theme';
 
 const CLAN_MEMBER_CAP = 100; // clans are capped at 100 members (patch #32)
-const CLAN = { name: 'HSR Walkers', hexes: 3392, members: 92 };
-const MEMBERS = [
-  { rank: 1, name: 'Priya', hexes: 842, points: 18240 },
-  { rank: 2, name: 'Rohit', hexes: 718, points: 15110 },
-  { rank: 3, name: 'Aisha', hexes: 665, points: 13980 },
-  { rank: 4, name: 'Karthik', hexes: 521, points: 10640 },
-  { rank: 5, name: 'Charan12', hexes: 421, points: 8730, you: true },
-  { rank: 6, name: 'Meera', hexes: 398, points: 8120 },
-  { rank: 7, name: 'Sandeep', hexes: 274, points: 5510 },
-];
 const SHEET_TABS = ['Leaderboard', 'Territories', 'History'];
 const MODES = ['Solo', 'Clan'];
 
@@ -95,23 +86,35 @@ function SheetSummary({
 
 export default function PlayScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user } = useCurrentUser();
-  const [mode, setMode] = useState('Clan');
+  const [mode, setMode] = useState('Solo');
   const [tab, setTab] = useState('Leaderboard');
   const sheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<HexMapHandle>(null);
   const [selectedHex, setSelectedHex] = useState<string | null>(null);
   const [topPlayers, setTopPlayers] = useState<LeaderPlayer[]>([]);
+  const [myClan, setMyClan] = useState<Clan | null>(null);
+  const [clanMembers, setClanMembers] = useState<ClanMember[]>([]);
+
+  const clanId = user?.clan_id ?? null;
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       fetchTopPlayers()
         .then((p) => alive && setTopPlayers(p))
         .catch(() => undefined);
+      fetchMyClan(clanId)
+        .then(async (c) => {
+          if (!alive) return;
+          setMyClan(c);
+          setClanMembers(c ? await fetchClanMembers(c).catch(() => []) : []);
+        })
+        .catch(() => undefined);
       return () => {
         alive = false;
       };
-    }, []),
+    }, [clanId]),
   );
 
   // Peek snap is measured from the summary so ONLY the summary shows (no half-cut tabs); the
@@ -123,10 +126,18 @@ export default function PlayScreen() {
   const myName = user?.display_name || user?.username || 'You';
   const myArea = user?.home_neighbourhood || 'Bengaluru';
   const myHexes = user?.current_held_hexes ?? 0;
+  const clanPoints = clanMembers.reduce((s, m) => s + m.points, 0);
 
-  // Clan leaderboard is still mock (clans land next); Solo is REAL top players by points.
+  // Both leaderboards are REAL now: Solo = top players by points; Clan = your clan's members.
   const leaderRows = isClan
-    ? MEMBERS.map((m) => ({ key: String(m.rank), rank: m.rank, name: m.name, points: m.points, sub: `${m.hexes} hexes`, you: !!m.you }))
+    ? clanMembers.map((m, i) => ({
+        key: m.id,
+        rank: i + 1,
+        name: m.name,
+        points: m.points,
+        sub: m.isOwner ? 'Owner' : `Level ${m.level}`,
+        you: m.you,
+      }))
     : topPlayers.map((p, i) => ({ key: p.id || String(i), rank: i + 1, name: p.name, points: p.points, sub: `Level ${p.level}`, you: p.id === user?.id }));
 
   return (
@@ -142,11 +153,14 @@ export default function PlayScreen() {
             return (
               <Pressable
                 key={m}
-                onPress={() => setMode(m)}
+                onPress={() => {
+                  if (m === 'Clan' && isClan) router.push('/clans' as Href);
+                  else setMode(m);
+                }}
                 className={`flex-1 flex-row items-center justify-center rounded-full py-2.5 ${active ? 'bg-ink-300' : ''}`}
               >
-                <Text className={`text-label-md ${active ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
-                  {m === 'Clan' ? CLAN.name : 'Solo'}
+                <Text numberOfLines={1} className={`text-label-md ${active ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
+                  {m === 'Clan' ? myClan?.name ?? 'Clan' : 'Solo'}
                 </Text>
                 {m === 'Clan' ? (
                   <View className="ml-1">
@@ -193,15 +207,24 @@ export default function PlayScreen() {
           {/* Summary — its measured height sets the peek snap so nothing below peeks through. */}
           <View onLayout={(e) => setPeekH(Math.round(e.nativeEvent.layout.height) + 46)}>
             {isClan ? (
-              <SheetSummary
-                title="My Clan"
-                name={CLAN.name}
-                sub={`${CLAN.members} / ${CLAN_MEMBER_CAP} members`}
-                metrics={[
-                  { value: CLAN.hexes.toLocaleString('en-IN'), label: 'Hexes held' },
-                  { value: `${CLAN.members}/${CLAN_MEMBER_CAP}`, label: 'Members' },
-                ]}
-              />
+              myClan ? (
+                <Pressable onPress={() => router.push('/clans' as Href)}>
+                  <SheetSummary
+                    title="My Clan"
+                    name={myClan.name}
+                    sub={`${myClan.memberCount} / ${CLAN_MEMBER_CAP} members · tap to manage`}
+                    metrics={[
+                      { value: clanPoints.toLocaleString('en-IN'), label: 'Points' },
+                      { value: `${myClan.memberCount}/${CLAN_MEMBER_CAP}`, label: 'Members' },
+                    ]}
+                  />
+                </Pressable>
+              ) : (
+                <Pressable onPress={() => router.push('/clans' as Href)} className="items-center py-3">
+                  <Text className="text-heading-md text-ink-900">You&apos;re not in a clan</Text>
+                  <Text className="mt-1 text-body-sm text-ink-700">Tap to create or join one →</Text>
+                </Pressable>
+              )
             ) : (
               <SheetSummary
                 title="Solo"
@@ -232,8 +255,13 @@ export default function PlayScreen() {
             {tab === 'Leaderboard' ? (
               <>
                 <Text className="mb-3 text-label-sm uppercase tracking-wide text-ink-600">
-                  {isClan ? 'Clan members by hexes' : 'Top players by points'}
+                  {isClan ? 'Clan members by points' : 'Top players by points'}
                 </Text>
+                {leaderRows.length === 0 ? (
+                  <Text className="text-body-sm text-ink-700">
+                    {isClan ? 'Join a clan to see clan standings.' : 'No players yet.'}
+                  </Text>
+                ) : null}
                 {leaderRows.map((m) => {
                   const top3 = m.rank <= 3;
                   return (
