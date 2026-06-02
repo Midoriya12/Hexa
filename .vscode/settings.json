@@ -3,5 +3,12 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
+  },
+  "//": "Hide node_modules from the explorer/search so third-party tsconfig.json files aren't opened by accident (their internal errors are harmless and not part of this project). Remove these two keys if you ever need to browse node_modules.",
+  "files.exclude": {
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/node_modules": true
   }
 }
