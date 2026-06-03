@@ -676,6 +676,23 @@ export type Database = {
         Args: { p_boundary: Json; p_lat: number; p_lng: number }
         Returns: boolean
       }
+      hexes_in_bbox: {
+        Args: {
+          p_limit?: number
+          p_max_lat: number
+          p_max_lng: number
+          p_min_lat: number
+          p_min_lng: number
+        }
+        Returns: {
+          boundary: Json
+          center_lat: number
+          center_lng: number
+          h3_index: string
+          owner: string
+          pincode: string
+        }[]
+      }
       join_clan: { Args: { p_clan_id: string }; Returns: Json }
       kick_member: { Args: { p_target_user_id: string }; Returns: Json }
       leave_clan: { Args: never; Returns: Json }

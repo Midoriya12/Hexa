@@ -119,6 +119,10 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
   const countRef = useRef(0);
   const distanceRef = useRef(0);
   const captureNonceRef = useRef(0);
+  // dwellMs changes when the user levels up. Read it through a ref so a level-up mid-walk (the
+  // capture path calls setUser, which can change level → dwellMs) does NOT re-run the GPS-watcher
+  // effect and tear down the live location subscription. The ref is kept fresh by the effect below.
+  const dwellMsRef = useRef(dwellMs);
 
   // New session (a fresh Start, not a pause/resume) → zero the counters + smoothing.
   useEffect(() => {
@@ -129,12 +133,18 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
     setState((s) => ({ ...s, capturedCount: 0, distanceM: 0, lastCapture: null, position: null }));
   }, [sessionKey]);
 
+  // Keep the dwell duration fresh without restarting the GPS watcher when the level changes.
+  useEffect(() => {
+    dwellMsRef.current = dwellMs;
+  }, [dwellMs]);
+
   useEffect(() => {
     if (!active) {
       hexRef.current = null;
       dwellStartRef.current = null;
       coordsRef.current = null;
       lastFixRef.current = null;
+      useHexStore.getState().setActiveHex(null);
       setState((s) => ({ ...s, status: 'idle', currentHex: null, dwellProgress: 0, message: '' }));
       return;
     }
@@ -181,6 +191,10 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
           coordsRef.current = { lat, lng };
           setState((s) => ({ ...s, accuracy, position: { lat, lng } }));
 
+          // Keep the hexes around the walker loaded so capture works even if the camera roamed
+          // (throttled internally by distance moved). Decouples capture-readiness from the viewport.
+          void useHexStore.getState().ensureLoadedAround(lat, lng, myId);
+
           // Accumulate distance from the smoothed track (ignore sub-metre noise + >50m jumps).
           if (lastFixRef.current) {
             const step = haversineM(lastFixRef.current.lat, lastFixRef.current.lng, lat, lng);
@@ -206,18 +220,21 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
           if (!hit) {
             hexRef.current = null;
             dwellStartRef.current = null;
+            useHexStore.getState().setActiveHex(null);
             setState((s) => ({ ...s, status: 'no_hex', currentHex: null, dwellProgress: 0, message: 'Walk into a hex to capture it.' }));
             return;
           }
           if (hit.owner === 'you') {
             hexRef.current = null;
             dwellStartRef.current = null;
+            useHexStore.getState().setActiveHex(null);
             setState((s) => ({ ...s, status: 'owned', currentHex: hit.h3, dwellProgress: 0, message: 'You already hold this hex.' }));
             return;
           }
           if (hexRef.current !== hit.h3) {
             hexRef.current = hit.h3;
             dwellStartRef.current = Date.now();
+            useHexStore.getState().setActiveHex(hit.h3); // protect the dwell cell from eviction
             setState((s) => ({ ...s, status: 'dwelling', currentHex: hit.h3, dwellProgress: 0, message: 'Hold this hex…' }));
           } else {
             setState((s) => ({ ...s, currentHex: hit.h3 }));
@@ -235,7 +252,7 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
         const coords = coordsRef.current;
         if (!start || !h3 || !coords) return;
 
-        const progress = Math.min(1, (Date.now() - start) / dwellMs);
+        const progress = Math.min(1, (Date.now() - start) / dwellMsRef.current);
         if (progress < 1) {
           setState((s) => ({ ...s, status: 'dwelling', dwellProgress: progress }));
           return;
@@ -255,6 +272,7 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
           captureNonceRef.current += 1;
           hexRef.current = null;
           dwellStartRef.current = null;
+          useHexStore.getState().setActiveHex(null);
           setState((s) => ({
             ...s,
             status: 'captured',
@@ -291,7 +309,7 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
       sub?.remove();
       if (interval) clearInterval(interval);
     };
-  }, [active, dwellMs, myId, setOwner, setUser]);
+  }, [active, myId, setOwner, setUser]); // NOT dwellMs — read via dwellMsRef so a level-up doesn't restart the watcher
 
   return { ...state, dwellSec };
 }

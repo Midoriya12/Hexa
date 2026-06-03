@@ -6,7 +6,8 @@
 // the rest of the screen (sheet, controls) keeps working — no white-screen.
 //
 // Hex rendering (INTVL territory model): OWNED hexes show as coloured territory at all zooms;
-// the UNOWNED grid shows outline-only from zoom 12 so the city/globe view stays clean.
+// the UNOWNED grid shows outline-only from zoom 13 (aligned with the viewport-fetch gate) so the
+// city/globe view stays clean and a single fetch stays under the PostgREST row cap.
 import {
   Component,
   forwardRef,
@@ -30,6 +31,7 @@ import Mapbox, {
   MapView,
   ShapeSource,
   StyleImport,
+  type MapState,
 } from '@rnmapbox/maps';
 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -97,23 +99,38 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
   // the map only while its screen is focused so exactly one surface is ever live.
   const isFocused = useIsFocused();
   const fc = useHexStore((s) => s.fc);
-  const loadHexes = useHexStore((s) => s.load);
   const { user } = useCurrentUser();
+  const myId = user?.id ?? null;
   const myColor = user?.hex_colour || '#FF6F00'; // your captured hexes render in your chosen colour
   const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
   const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
 
-  // Load the grid + ownership once into the shared store (no-op if already loaded). Captures
-  // update the store, so both the Play and Start maps recolour instantly.
+  // Your OWN hexes load bounds-independently (territory shows at every zoom); reloads on account
+  // switch. The visible grid is loaded per-viewport in onMapIdle below.
   useEffect(() => {
-    void loadHexes(user?.id ?? null);
-  }, [loadHexes, user?.id]);
+    void useHexStore.getState().loadOwn(myId);
+  }, [myId]);
+
+  // Viewport loader: when the camera settles, fetch the hexes inside the (clamped + padded) bounds.
+  // bounds.ne/sw are [lng,lat]; skip mid-gesture settles. The store merges, evicts + dedupes.
+  const onMapIdle = useCallback(
+    (state: MapState) => {
+      if (state.gestures?.isGestureActive) return;
+      const { bounds, zoom } = state.properties;
+      void useHexStore
+        .getState()
+        .loadBounds(
+          { minLng: bounds.sw[0], minLat: bounds.sw[1], maxLng: bounds.ne[0], maxLat: bounds.ne[1] },
+          zoom,
+          myId,
+        );
+    },
+    [myId],
+  );
 
   // "Find nearest hex": fly to the closest UNOWNED hex to the user (or launch-area centre if
   // location is unavailable). No turn-by-turn — just a camera move (spec line 1480).
   const flyToNearestHex = useCallback(async () => {
-    const current = useHexStore.getState().fc;
-    if (!current) return;
     let from: [number, number] = HSR_CENTER;
     try {
       let granted = (await Location.getForegroundPermissionsAsync()).granted;
@@ -125,6 +142,10 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
     } catch {
       /* fall back to the launch-area centre */
     }
+    // Prime the loaded window around the user so the scan sees nearby hexes (viewport-windowed).
+    await useHexStore.getState().ensureLoadedAround(from[1], from[0], myId);
+    const current = useHexStore.getState().fc;
+    if (!current) return;
     let best: [number, number] | null = null;
     let bestD = Infinity;
     for (const f of current.features) {
@@ -138,7 +159,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
       }
     }
     if (best) cameraRef.current?.setCamera({ centerCoordinate: best, zoomLevel: 16, animationDuration: 800 });
-  }, []);
+  }, [myId]);
 
   useImperativeHandle(ref, () => ({ flyToNearestHex }), [flyToNearestHex]);
 
@@ -219,6 +240,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
         attributionEnabled={false}
         compassEnabled={false}
         onPress={onHexPress ? handleMapPress : undefined}
+        onMapIdle={onMapIdle}
       >
         {/* Day/night lighting on the Standard basemap (bright & colourful by day, dark at night). */}
         <StyleImport id="basemap" existing config={{ lightPreset }} />
@@ -283,7 +305,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
             <LineLayer
               id="hexLineUnowned"
               filter={['==', ['get', 'owner'], 'none']}
-              minZoomLevel={12}
+              minZoomLevel={13}
               style={{
                 lineColor: 'rgba(255,140,0,0.9)',
                 lineWidth: ['interpolate', ['linear'], ['zoom'], 12, 1.2, 17, 2.8],
