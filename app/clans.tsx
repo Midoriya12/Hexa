@@ -3,12 +3,12 @@
 // 1500 pts) + browse/request-to-join. Plus a clan-vs-clan leaderboard. Server enforces every
 // permission; the UI only shows the buttons you're allowed to press.
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { IconChevronLeft } from '@/components/ui/Icon';
 
-import { Avatar, Badge, Button } from '@/components/ui';
+import { ActionSheet, Avatar, Badge, Button, type SheetAction } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { fetchOwnUser } from '@/lib/supabase/auth';
 import {
@@ -47,8 +47,25 @@ const ROLE_LABEL: Record<ClanRole, string> = { president: 'President', vp: 'VP',
 const rank = (r: ClanRole) => ({ president: 3, vp: 2, senior: 1, member: 0 })[r];
 
 function Avatarish({ name, colour, size = 32 }: { name: string; colour: string | null; size?: 24 | 32 | 40 | 48 }) {
+  // Pin the wrapper to a real circle. Without explicit dimensions + alignSelf, a flex-row's
+  // default `align-items: stretch` stretches this bordered View to the row height, turning the
+  // "circle" into an oval (the chat-avatar bug).
+  const ring = colour ? 2 : 0;
+  const box = size + ring * 2;
   return (
-    <View style={{ borderWidth: 2, borderColor: colour || 'transparent', borderRadius: 999 }}>
+    <View
+      style={{
+        width: box,
+        height: box,
+        borderRadius: box / 2,
+        borderWidth: ring,
+        borderColor: colour || 'transparent',
+        alignItems: 'center',
+        justifyContent: 'center',
+        alignSelf: 'flex-start',
+        overflow: 'hidden',
+      }}
+    >
       <Avatar size={size} name={name} />
     </View>
   );
@@ -76,6 +93,27 @@ export default function ClansScreen() {
   const [minP, setMinP] = useState('');
   const [minH, setMinH] = useState('');
 
+  // browse: clan detail sub-view + request-to-join modal
+  const [viewClan, setViewClan] = useState<Clan | null>(null);
+  const [viewMembers, setViewMembers] = useState<ClanMember[]>([]);
+  const [viewStats, setViewStats] = useState<ClanStats | null>(null);
+  const [requestFor, setRequestFor] = useState<Clan | null>(null);
+  const [joinMsg, setJoinMsg] = useState('');
+  const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
+
+  // Themed action sheet / confirm (replaces the OS Alert popups).
+  const [sheet, setSheet] = useState<{ title?: string; message?: string; actions: SheetAction[] } | null>(null);
+  const confirm = (title: string, message: string, label: string, onConfirm: () => void) =>
+    setSheet({
+      title,
+      message,
+      actions: [
+        { label, destructive: true, onPress: onConfirm },
+        { label: 'Cancel', cancel: true },
+      ],
+    });
+
   const myRole = (user?.clan_role ?? null) as ClanRole | null;
   const canModerate = myRole === 'president' || myRole === 'vp';
   const myPoints = user?.current_round_points ?? 0;
@@ -91,18 +129,28 @@ export default function ClansScreen() {
   };
 
   const load = useCallback(async () => {
-    const clan = await fetchMyClan(user?.clan_id).catch(() => null);
+    // Read the FRESH user from the store (not this closure) so membership changes — leave /
+    // disband / accept — reflect immediately instead of re-fetching the previous clan.
+    const u = useUserStore.getState().user;
+    const clanId = u?.clan_id ?? null;
+    const role = (u?.clan_role ?? null) as ClanRole | null;
+    const clan = await fetchMyClan(clanId).catch(() => null);
     setMyClan(clan);
     if (clan) {
       setMembers(await fetchClanMembers(clan).catch(() => []));
       setStats(await fetchClanStats(clan.id).catch(() => null));
-      if (myRole === 'president' || myRole === 'vp') setRequests(await listJoinRequests().catch(() => []));
+      setRequests(role === 'president' || role === 'vp' ? await listJoinRequests().catch(() => []) : []);
       setMessages(await fetchMessages(clan.id).catch(() => []));
     } else {
       setClans(await listClans().catch(() => []));
+      setMembers([]);
+      setStats(null);
+      setRequests([]);
+      setMessages([]);
+      setTab('Roster');
     }
     setLb(await fetchClansLeaderboard().catch(() => []));
-  }, [user?.clan_id, myRole]);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     void load();
@@ -118,30 +166,72 @@ export default function ClansScreen() {
     }
   };
 
+  // Browse: open a clan's detail (works for any clan — roster/stats use definer RPCs).
+  const openClanDetail = async (c: Clan) => {
+    setViewClan(c);
+    setViewMembers([]);
+    setViewStats(null);
+    setViewMembers(await fetchClanMembers(c).catch(() => []));
+    setViewStats(await fetchClanStats(c.id).catch(() => null));
+  };
+
+  // Send a join request (with optional message) + clear confirmation.
+  const submitRequest = async () => {
+    if (!requestFor || sending) return;
+    setSending(true);
+    try {
+      await requestToJoin(requestFor.id, joinMsg);
+      setRequestedIds((s) => new Set(s).add(requestFor.id));
+      setRequestFor(null);
+      setJoinMsg('');
+      Alert.alert('Request sent', 'The clan officers will review your request.');
+    } catch (e) {
+      Alert.alert('Request', clanError(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
   // ── Moderation action sheet on a member ──
   const onMemberPress = (m: ClanMember) => {
     if (m.you || !myRole) {
       router.push(`/u/${m.id}` as Href);
       return;
     }
-    const buttons: { text: string; style?: 'destructive' | 'cancel'; onPress?: () => void }[] = [
-      { text: 'View profile', onPress: () => router.push(`/u/${m.id}` as Href) },
+    const actions: SheetAction[] = [
+      { label: 'View profile', onPress: () => router.push(`/u/${m.id}` as Href) },
     ];
     if (myRole === 'president') {
-      const roles: ClanRole[] = ['vp', 'senior', 'member'];
-      roles.filter((r) => r !== m.role).forEach((r) =>
-        buttons.push({ text: `Make ${ROLE_LABEL[r]}`, onPress: () => act(() => setMemberRole(m.id, r), 'Change role') }),
-      );
-      buttons.push({ text: 'Transfer presidency', onPress: () => act(() => setMemberRole(m.id, 'president'), 'Transfer') });
+      (['vp', 'senior', 'member'] as ClanRole[])
+        .filter((r) => r !== m.role)
+        .forEach((r) =>
+          actions.push({ label: `Make ${ROLE_LABEL[r]}`, onPress: () => act(() => setMemberRole(m.id, r), 'Change role') }),
+        );
+      actions.push({
+        label: 'Transfer presidency',
+        destructive: true,
+        onPress: () =>
+          confirm('Transfer presidency?', `${m.name} becomes President and you become VP.`, 'Transfer', () =>
+            act(() => setMemberRole(m.id, 'president'), 'Transfer'),
+          ),
+      });
     }
     // kick matrix (client mirror; server enforces)
     const canKick =
-      (myRole === 'president') ||
+      myRole === 'president' ||
       (myRole === 'vp' && rank(m.role) < rank('vp')) ||
       (myRole === 'senior' && m.role === 'member');
-    if (canKick) buttons.push({ text: 'Kick', style: 'destructive', onPress: () => act(() => kickMember(m.id), 'Kick') });
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert(m.name, ROLE_LABEL[m.role], buttons);
+    if (canKick)
+      actions.push({
+        label: 'Kick from clan',
+        destructive: true,
+        onPress: () =>
+          confirm(`Kick ${m.name}?`, 'They can request to join again later.', 'Kick', () =>
+            act(() => kickMember(m.id), 'Kick'),
+          ),
+      });
+    actions.push({ label: 'Cancel', cancel: true });
+    setSheet({ title: m.name, message: ROLE_LABEL[m.role], actions });
   };
 
   const tabs = canModerate ? ['Roster', 'Requests', 'Chat', 'Settings'] : ['Roster', 'Chat'];
@@ -190,7 +280,7 @@ export default function ClansScreen() {
                 {myRole ? <Badge tone="saffron" label={ROLE_LABEL[myRole]} /> : null}
                 {myClan.description ? <Text className="mt-1 text-body-sm text-ink-700">{myClan.description}</Text> : null}
               </View>
-              <Button label="Leave" size="sm" variant="secondary" onPress={() => Alert.alert('Leave clan?', 'You can join another later.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Leave', style: 'destructive', onPress: () => act(leaveClan, 'Leave') }])} />
+              <Button label="Leave" size="sm" variant="secondary" onPress={() => confirm('Leave clan?', 'You can join another later.', 'Leave', () => act(leaveClan, 'Leave'))} />
             </View>
             <View className="mt-3 flex-row gap-3">
               {[
@@ -239,16 +329,23 @@ export default function ClansScreen() {
                 <Text className="text-body-sm text-ink-700">No pending requests.</Text>
               ) : (
                 requests.map((r) => (
-                  <View key={r.id} className="mb-2 flex-row items-center rounded-md bg-ink-200 p-3">
-                    <Avatarish name={r.user.name} colour={r.user.colour} />
-                    <View className="ml-3 flex-1">
-                      <Text className="text-heading-sm text-ink-900">{r.user.name}</Text>
-                      <Text className="text-label-sm text-ink-600">L{r.user.level} · {r.user.points.toLocaleString('en-IN')} pts</Text>
+                  <View key={r.id} className="mb-2 rounded-md bg-ink-200 p-3">
+                    <View className="flex-row items-center">
+                      <Avatarish name={r.user.name} colour={r.user.colour} />
+                      <View className="ml-3 flex-1">
+                        <Text className="text-heading-sm text-ink-900">{r.user.name}</Text>
+                        <Text className="text-label-sm text-ink-600">L{r.user.level} · {r.user.points.toLocaleString('en-IN')} pts</Text>
+                      </View>
+                      <View className="flex-row gap-2">
+                        <Button label="Accept" size="sm" onPress={() => act(() => respondJoinRequest(r.id, true), 'Accept')} />
+                        <Button label="Reject" size="sm" variant="secondary" onPress={() => act(() => respondJoinRequest(r.id, false), 'Reject')} />
+                      </View>
                     </View>
-                    <View className="flex-row gap-2">
-                      <Button label="Accept" size="sm" onPress={() => act(() => respondJoinRequest(r.id, true), 'Accept')} />
-                      <Button label="Reject" size="sm" variant="secondary" onPress={() => act(() => respondJoinRequest(r.id, false), 'Reject')} />
-                    </View>
+                    {r.message ? (
+                      <Text className="mt-2 text-body-sm italic text-ink-700" numberOfLines={4}>
+                        “{r.message}”
+                      </Text>
+                    ) : null}
                   </View>
                 ))
               )
@@ -257,15 +354,21 @@ export default function ClansScreen() {
                 {messages.length === 0 ? (
                   <Text className="text-body-sm text-ink-700">No messages yet — say hi to your clan.</Text>
                 ) : (
-                  messages.map((msg) => (
-                    <View key={msg.id} className="mb-3 flex-row">
-                      <Avatarish name={msg.name} colour={msg.colour} size={32} />
-                      <View className="ml-2 flex-1">
-                        <Text className="text-label-md font-semibold text-ink-900">{msg.name}</Text>
-                        <Text className="text-body-md text-ink-800">{msg.body}</Text>
+                  messages.map((msg) =>
+                    msg.kind === 'system' ? (
+                      <View key={msg.id} className="my-2 items-center">
+                        <Text className="text-center text-label-sm italic text-ink-600">{msg.body}</Text>
                       </View>
-                    </View>
-                  ))
+                    ) : (
+                      <View key={msg.id} className="mb-3 flex-row items-start">
+                        <Avatarish name={msg.name} colour={msg.colour} size={32} />
+                        <View className="ml-2 flex-1">
+                          <Text className="text-label-md font-semibold text-ink-900">{msg.name}</Text>
+                          <Text className="text-body-md text-ink-800">{msg.body}</Text>
+                        </View>
+                      </View>
+                    ),
+                  )
                 )}
                 <View className="mt-2 flex-row items-center gap-2">
                   <View className="flex-1 rounded-md border border-ink-400 bg-ink-200 px-3">
@@ -296,12 +399,79 @@ export default function ClansScreen() {
               </>
             ) : (
               // Settings (president/vp)
-              <ClanSettings clan={myClan} isPresident={myRole === 'president'} onSaved={load} refreshUser={refreshUser} />
+              <ClanSettings clan={myClan} isPresident={myRole === 'president'} onSaved={load} refreshUser={refreshUser} confirm={confirm} />
             )}
           </ScrollView>
         </View>
+      ) : viewClan ? (
+        // ════════════ CLAN DETAIL (browsing a clan you're not in) ════════════
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
+          <Pressable onPress={() => setViewClan(null)} className="mb-3 flex-row items-center self-start">
+            <IconChevronLeft size={20} color={colors.saffron[600]} />
+            <Text className="text-body-md font-semibold text-saffron-600">All clans</Text>
+          </Pressable>
+
+          <View className="flex-row items-center">
+            <View className="h-14 w-14 items-center justify-center rounded-xl" style={{ backgroundColor: viewClan.colour || colors.player.saffron }}>
+              <Text className="text-heading-lg font-extrabold text-white">{viewClan.name.charAt(0).toUpperCase()}</Text>
+            </View>
+            <View className="ml-3 flex-1">
+              <Text className="text-heading-lg text-ink-900">{viewClan.name}</Text>
+              <Text className="text-label-sm text-ink-600">{viewClan.memberCount}/{CAP} members</Text>
+            </View>
+          </View>
+
+          {viewClan.description ? <Text className="mt-3 text-body-md text-ink-700">{viewClan.description}</Text> : null}
+
+          <View className="mt-3 flex-row gap-3">
+            {[
+              { v: `${viewClan.memberCount}/${CAP}`, l: 'Members' },
+              { v: (viewStats?.totalPoints ?? 0).toLocaleString('en-IN'), l: 'Total points' },
+              { v: (viewStats?.totalHexes ?? 0).toLocaleString('en-IN'), l: 'Total hexes' },
+            ].map((s) => (
+              <View key={s.l} className="flex-1 items-center rounded-md border border-ink-400 bg-ink-100 py-2">
+                <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm font-extrabold text-saffron-600">{s.v}</Text>
+                <Text className="text-label-sm uppercase text-ink-600">{s.l}</Text>
+              </View>
+            ))}
+          </View>
+
+          {viewClan.minPoints > 0 || viewClan.minHexes > 0 ? (
+            <Text className="mt-3 text-body-sm text-ink-700">
+              Requirements: {viewClan.minPoints > 0 ? `${viewClan.minPoints.toLocaleString('en-IN')}+ pts` : ''}
+              {viewClan.minPoints > 0 && viewClan.minHexes > 0 ? ' · ' : ''}
+              {viewClan.minHexes > 0 ? `${viewClan.minHexes}+ hexes` : ''}
+            </Text>
+          ) : null}
+
+          <View className="mt-4">
+            {viewClan.memberCount >= CAP ? (
+              <Text className="text-center text-body-md text-ink-600">This clan is full.</Text>
+            ) : requestedIds.has(viewClan.id) ? (
+              <Text className="text-center text-body-md text-ink-600">Request sent ✓</Text>
+            ) : (
+              <Button label="Request to join" onPress={() => setRequestFor(viewClan)} />
+            )}
+          </View>
+
+          <Text className="mb-2 mt-6 text-label-sm uppercase tracking-wide text-ink-600">Members</Text>
+          {viewMembers.length === 0 ? (
+            <Text className="text-body-sm text-ink-700">Loading members…</Text>
+          ) : (
+            viewMembers.map((m) => (
+              <Pressable key={m.id} onPress={() => router.push(`/u/${m.id}` as Href)} className="mb-2 flex-row items-center rounded-md bg-ink-200 px-3 py-3">
+                <Avatarish name={m.name} colour={m.colour} />
+                <View className="ml-3 flex-1">
+                  <Text className="text-heading-sm text-ink-900">{m.name}</Text>
+                  <Text className="text-label-sm text-ink-600">{ROLE_LABEL[m.role]} · L{m.level}</Text>
+                </View>
+                <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-IN')}</Text>
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
       ) : (
-        // ════════════ NOT IN A CLAN ════════════
+        // ════════════ NOT IN A CLAN — create + browse ════════════
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
           <Text className="mb-1 text-heading-md text-ink-900">Found a clan</Text>
           <Text className="mb-3 text-body-sm text-ink-700">Costs {CLAN_COST.toLocaleString('en-IN')} points — you have {myPoints.toLocaleString('en-IN')}.</Text>
@@ -325,8 +495,9 @@ export default function ClansScreen() {
           ) : (
             clans.map((c) => {
               const full = c.memberCount >= CAP;
+              const requested = requestedIds.has(c.id);
               return (
-                <View key={c.id} className="mb-2 flex-row items-center rounded-md bg-ink-100 p-3">
+                <Pressable key={c.id} onPress={() => openClanDetail(c)} className="mb-2 flex-row items-center rounded-md bg-ink-100 p-3">
                   <View className="h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: c.colour || colors.player.saffron }}>
                     <Text className="font-extrabold text-white">{c.name.charAt(0).toUpperCase()}</Text>
                   </View>
@@ -340,15 +511,55 @@ export default function ClansScreen() {
                   </View>
                   {full ? (
                     <Text className="text-body-sm text-ink-600">Full</Text>
+                  ) : requested ? (
+                    <Text className="text-body-sm text-ink-600">Requested</Text>
                   ) : (
-                    <Button label="Request" size="sm" onPress={() => act(() => requestToJoin(c.id), 'Request')} />
+                    <Button label="Request" size="sm" onPress={() => setRequestFor(c)} />
                   )}
-                </View>
+                </Pressable>
               );
             })
           )}
         </ScrollView>
       )}
+
+      {/* ── Request-to-join modal (optional message + confirmation) ── */}
+      <Modal visible={!!requestFor} transparent animationType="fade" onRequestClose={() => setRequestFor(null)}>
+        <Pressable onPress={() => setRequestFor(null)} className="flex-1 items-center justify-center bg-black/60 px-6">
+          <Pressable onPress={() => undefined} className="w-full rounded-xl bg-ink-100 p-5">
+            <Text className="text-heading-md text-ink-900">Request to join {requestFor?.name}</Text>
+            <Text className="mt-1 text-body-sm text-ink-700">Add an optional message for the clan officers.</Text>
+            <View className="mt-3 rounded-md border border-ink-400 bg-ink-200 px-3">
+              <TextInput
+                value={joinMsg}
+                onChangeText={setJoinMsg}
+                placeholder="e.g. I walk HSR daily — would love to join!"
+                placeholderTextColor={colors.ink[600]}
+                multiline
+                maxLength={280}
+                className="min-h-[72px] py-2 text-body-md text-ink-900"
+              />
+            </View>
+            <View className="mt-4 flex-row gap-3">
+              <View className="flex-1">
+                <Button label="Cancel" variant="secondary" onPress={() => { setRequestFor(null); setJoinMsg(''); }} />
+              </View>
+              <View className="flex-1">
+                <Button label="Send request" loading={sending} onPress={submitRequest} />
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Themed action sheet / confirm (member moderation, leave, disband) */}
+      <ActionSheet
+        visible={!!sheet}
+        title={sheet?.title}
+        message={sheet?.message}
+        actions={sheet?.actions ?? []}
+        onClose={() => setSheet(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -368,7 +579,19 @@ function Field({ value, onChange, placeholder, numeric }: { value: string; onCha
   );
 }
 
-function ClanSettings({ clan, isPresident, onSaved, refreshUser }: { clan: Clan; isPresident: boolean; onSaved: () => void; refreshUser: () => Promise<void> }) {
+function ClanSettings({
+  clan,
+  isPresident,
+  onSaved,
+  refreshUser,
+  confirm,
+}: {
+  clan: Clan;
+  isPresident: boolean;
+  onSaved: () => void;
+  refreshUser: () => Promise<void>;
+  confirm: (title: string, message: string, label: string, onConfirm: () => void) => void;
+}) {
   const [name, setName] = useState(clan.name);
   const [desc, setDesc] = useState(clan.description);
   const [minP, setMinP] = useState(String(clan.minPoints));
@@ -397,22 +620,15 @@ function ClanSettings({ clan, isPresident, onSaved, refreshUser }: { clan: Clan;
           <Text
             className="self-center py-2 text-body-md font-semibold text-danger"
             onPress={() =>
-              Alert.alert('Disband clan?', 'This permanently deletes the clan for everyone.', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Disband',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await disbandClan();
-                      await refreshUser();
-                      onSaved();
-                    } catch (e) {
-                      Alert.alert('Disband', clanError(e));
-                    }
-                  },
-                },
-              ])
+              confirm('Disband clan?', 'This permanently deletes the clan for everyone.', 'Disband', async () => {
+                try {
+                  await disbandClan();
+                  await refreshUser();
+                  onSaved();
+                } catch (e) {
+                  Alert.alert('Disband', clanError(e));
+                }
+              })
             }
           >
             Disband clan

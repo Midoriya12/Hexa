@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 
-import { Button } from '@/components/ui';
+import { BottomToast, Button } from '@/components/ui';
 import { HexMap } from '@/components/map/HexMap';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { IconStack, IconTarget } from '@/components/ui/Icon';
@@ -62,6 +62,8 @@ export default function StartScreen() {
   } | null>(null);
   const [card, setCard] = useState<{ ip: number; pph: number } | null>(null);
   const [route, setRoute] = useState<GeoJSON.LineString | null>(null);
+  const [routing, setRouting] = useState(false);
+  const [routeToast, setRouteToast] = useState<string | null>(null);
   const seenNonce = useRef(0);
 
   const sheetRef = useRef<BottomSheet>(null);
@@ -113,40 +115,62 @@ export default function StartScreen() {
     setSessionKey((k) => k + 1); // reset tracker distance/hexes so the next walk starts at 0
   };
 
-  // Crosshair → draw a walking route to the nearest hex you're not already standing in.
+  // Crosshair → draw a walking route to the nearest hex you don't already own. Tapping again
+  // clears it. Every failure path now gives feedback so the button never feels dead.
   const routeToNearest = async () => {
-    let me = tracker.position;
-    if (!me) {
-      try {
+    if (routing) return;
+    if (route) {
+      setRoute(null); // toggle off
+      return;
+    }
+    setRouting(true);
+    try {
+      let me = tracker.position;
+      if (!me) {
         const granted =
           (await Location.getForegroundPermissionsAsync()).granted ||
           (await Location.requestForegroundPermissionsAsync()).granted;
-        if (granted) {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          me = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        if (!granted) {
+          setRouteToast('Location permission is needed to find a route.');
+          return;
         }
-      } catch {
-        /* ignore */
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        me = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       }
-    }
-    if (!me) return;
-    const fc = useHexStore.getState().fc;
-    if (!fc) return;
-    const cosLat = Math.cos((me.lat * Math.PI) / 180);
-    let best: { clat: number; clng: number } | null = null;
-    let bestD = Infinity;
-    for (const f of fc.features) {
-      const dLat = f.properties.clat - me.lat;
-      const dLng = (f.properties.clng - me.lng) * cosLat;
-      const d = dLat * dLat + dLng * dLng;
-      if (Math.sqrt(d) * 111320 < 50) continue; // skip the cell you're already in
-      if (d < bestD) {
-        bestD = d;
-        best = { clat: f.properties.clat, clng: f.properties.clng };
+      const fc = useHexStore.getState().fc;
+      if (!fc) {
+        setRouteToast('Map still loading — try again in a moment.');
+        return;
       }
+      const cosLat = Math.cos((me.lat * Math.PI) / 180);
+      let best: { clat: number; clng: number } | null = null;
+      let bestD = Infinity;
+      for (const f of fc.features) {
+        if (f.properties.owner === 'you') continue; // no point routing to a hex you hold
+        const dLat = f.properties.clat - me.lat;
+        const dLng = (f.properties.clng - me.lng) * cosLat;
+        const d = dLat * dLat + dLng * dLng;
+        if (Math.sqrt(d) * 111320 < 50) continue; // skip the cell you're already in
+        if (d < bestD) {
+          bestD = d;
+          best = { clat: f.properties.clat, clng: f.properties.clng };
+        }
+      }
+      if (!best) {
+        setRouteToast('No nearby hex to walk to.');
+        return;
+      }
+      const line = await getWalkingRoute([me.lng, me.lat], [best.clng, best.clat]);
+      if (!line) {
+        setRouteToast("Couldn't fetch a walking route — check your connection.");
+        return;
+      }
+      setRoute(line);
+    } catch {
+      setRouteToast("Couldn't get your location.");
+    } finally {
+      setRouting(false);
     }
-    if (!best) return;
-    setRoute(await getWalkingRoute([me.lng, me.lat], [best.clng, best.clat]));
   };
 
   const dwelling = tracker.status === 'dwelling' || tracker.status === 'capturing';
@@ -174,7 +198,7 @@ export default function StartScreen() {
       {/* ── Floating controls (right) ── */}
       <View style={{ position: 'absolute', right: 16, top: insets.top + 56 }}>
         <ControlButton onPress={routeToNearest}>
-          <IconTarget size={20} color={colors.ink[900]} />
+          <IconTarget size={20} color={route || routing ? colors.saffron[600] : colors.ink[900]} />
         </ControlButton>
         <ControlButton>
           <IconStack size={20} color={colors.ink[900]} />
@@ -250,6 +274,7 @@ export default function StartScreen() {
         points={summary?.points ?? 0}
         onClose={() => setSummary(null)}
       />
+      <BottomToast visible={!!routeToast} message={routeToast ?? ''} onDismiss={() => setRouteToast(null)} />
     </View>
   );
 }

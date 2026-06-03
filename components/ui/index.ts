@@ -12,3 +12,4 @@ export { HoldToConfirm } from './HoldToConfirm';
 export { TopBanner, BottomToast } from './Toast';
 export { FeatureGate } from './FeatureGate';
 export { BottomSheet } from './BottomSheet';
+export { ActionSheet, type SheetAction } from './ActionSheet';

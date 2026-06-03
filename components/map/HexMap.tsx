@@ -45,6 +45,9 @@ const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 // HSR Layout centroid [lng, lat] — the launch area.
 const HSR_CENTER: [number, number] = [77.6446, 12.9116];
 
+// Zoomed-right-out "whole globe" level — the Start map opens here, then flies down to you.
+const GLOBE_ZOOM = 2.2;
+
 // Fixed local-hour window (refine to real sunrise/sunset later).
 function isDaytime(): boolean {
   const h = new Date().getHours();
@@ -163,6 +166,38 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
     [onHexPress],
   );
 
+  // Cinematic intro (Start only): open on the globe, then fly down to the user's REAL location
+  // (falls back to the launch area if location is unavailable). Replays whenever the Start tab is
+  // focused — the MapView remounts on focus, so it reopens on the globe and dives in again.
+  useEffect(() => {
+    if (!followUser || !isFocused) return;
+    let alive = true;
+    (async () => {
+      let target: [number, number] = HSR_CENTER;
+      try {
+        const granted =
+          (await Location.getForegroundPermissionsAsync()).granted ||
+          (await Location.requestForegroundPermissionsAsync()).granted;
+        if (granted) {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          target = [loc.coords.longitude, loc.coords.latitude];
+        }
+      } catch {
+        /* fall back to the launch-area centre */
+      }
+      if (!alive) return;
+      cameraRef.current?.setCamera({
+        centerCoordinate: target,
+        zoomLevel: 16,
+        animationMode: 'flyTo',
+        animationDuration: 2800,
+      });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [followUser, isFocused]);
+
   // Smoothly follow the SMOOTHED dot (not raw GPS) so the camera glides instead of jittering;
   // setCamera without zoomLevel preserves the user's current zoom.
   useEffect(() => {
@@ -190,7 +225,9 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
 
         <Camera
           ref={cameraRef}
-          defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel }}
+          // Start (followUser) opens on the globe and flies down to you (see intro effect below);
+          // Play opens at its given zoom.
+          defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel: followUser ? GLOBE_ZOOM : zoomLevel }}
           minZoomLevel={0.5}
           maxZoomLevel={19}
         />

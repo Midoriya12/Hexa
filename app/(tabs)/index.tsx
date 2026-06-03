@@ -18,6 +18,7 @@ import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { fetchTopPlayers, type LeaderPlayer } from '@/lib/supabase/leaderboard';
 import { fetchClanMembers, fetchMyClan, type Clan, type ClanMember } from '@/lib/supabase/clans';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { colors } from '@/theme';
 
 const CLAN_MEMBER_CAP = 100; // clans are capped at 100 members (patch #32)
@@ -96,8 +97,11 @@ export default function PlayScreen() {
   const [topPlayers, setTopPlayers] = useState<LeaderPlayer[]>([]);
   const [myClan, setMyClan] = useState<Clan | null>(null);
   const [clanMembers, setClanMembers] = useState<ClanMember[]>([]);
+  const notifCount = useNotificationStore((s) => s.total);
+  const refreshNotif = useNotificationStore((s) => s.refresh);
 
   const clanId = user?.clan_id ?? null;
+  const canManageJoins = user?.clan_role === 'president' || user?.clan_role === 'vp';
   useFocusEffect(
     useCallback(() => {
       let alive = true;
@@ -111,10 +115,11 @@ export default function PlayScreen() {
           setClanMembers(c ? await fetchClanMembers(c).catch(() => []) : []);
         })
         .catch(() => undefined);
+      void refreshNotif(canManageJoins);
       return () => {
         alive = false;
       };
-    }, [clanId]),
+    }, [clanId, canManageJoins, refreshNotif]),
   );
 
   // Peek snap is measured from the summary so ONLY the summary shows (no half-cut tabs); the
@@ -174,11 +179,21 @@ export default function PlayScreen() {
         </View>
       </View>
 
-      {/* ── Floating bell (left, below top bar) ── */}
+      {/* ── Floating bell (left, below top bar) → notifications inbox, with unread badge ── */}
       <View style={{ position: 'absolute', left: 16, top: insets.top + 64 }}>
-        <View className="h-11 w-11 items-center justify-center rounded-full border border-ink-400 bg-ink-100">
+        <Pressable
+          onPress={() => router.push('/notifications' as Href)}
+          className="h-11 w-11 items-center justify-center rounded-full border border-ink-400 bg-ink-100"
+        >
           <IconBell size={20} color={colors.ink[900]} />
-        </View>
+          {notifCount > 0 ? (
+            <View className="absolute -right-1 -top-1 h-5 min-w-[20px] items-center justify-center rounded-full bg-saffron-600 px-1">
+              <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-sm font-bold text-white">
+                {notifCount > 99 ? '99+' : notifCount}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
       </View>
 
       {/* ── Floating controls (right) ── */}

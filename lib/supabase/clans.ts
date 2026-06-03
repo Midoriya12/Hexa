@@ -46,6 +46,7 @@ export interface ClanLbRow {
 
 export interface JoinRequest {
   id: number;
+  message: string | null;
   user: { id: string; name: string; username: string | null; level: number; points: number; colour: string | null };
 }
 
@@ -56,6 +57,8 @@ export interface ClanMessage {
   colour: string | null;
   body: string;
   createdAt: string;
+  /** 'system' lines (joined / promoted / left / …) render centred with no avatar. */
+  kind: 'user' | 'system';
 }
 
 export const CLAN_COST = 1500;
@@ -89,8 +92,11 @@ export async function createClan(name: string, colour: string, description = '',
   return data as unknown as { clan_id: string };
 }
 
-export async function requestToJoin(clanId: string) {
-  const { error } = await supabase.rpc('request_to_join', { p_clan_id: clanId });
+export async function requestToJoin(clanId: string, message?: string) {
+  const { error } = await supabase.rpc('request_to_join', {
+    p_clan_id: clanId,
+    p_message: message?.trim() ? message.trim() : undefined,
+  });
   if (error) throw error;
 }
 export async function cancelJoinRequest(requestId: number) {
@@ -206,7 +212,7 @@ export async function fetchClansLeaderboard(limit = 50): Promise<ClanLbRow[]> {
 export async function listJoinRequests(): Promise<JoinRequest[]> {
   const { data: rows, error } = await supabase
     .from('clan_join_requests')
-    .select('id, user_id')
+    .select('id, user_id, message')
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -223,6 +229,7 @@ export async function listJoinRequests(): Promise<JoinRequest[]> {
       return u
         ? {
             id: r.id,
+            message: r.message ?? null,
             user: {
               id: u.id ?? r.user_id,
               name: u.display_name || u.username || 'Player',
@@ -252,7 +259,7 @@ export async function postMessage(clanId: string, body: string): Promise<void> {
 export async function fetchMessages(clanId: string, limit = 50): Promise<ClanMessage[]> {
   const { data: rows, error } = await supabase
     .from('clan_messages')
-    .select('id, user_id, body, created_at')
+    .select('id, user_id, body, created_at, kind')
     .eq('clan_id', clanId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -272,6 +279,7 @@ export async function fetchMessages(clanId: string, limit = 50): Promise<ClanMes
         colour: u?.hex_colour ?? null,
         body: r.body,
         createdAt: r.created_at,
+        kind: (r.kind ?? 'user') as 'user' | 'system',
       };
     })
     .reverse(); // oldest → newest for chat display

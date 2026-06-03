@@ -11,6 +11,8 @@ import '../global.css';
 import { supabase } from '@/lib/supabase/client';
 import { fetchOwnUser, getSession, isProfileComplete } from '@/lib/supabase/auth';
 import { useUserStore } from '@/stores/userStore';
+import { useHexStore } from '@/stores/hexStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { initSentry, Sentry } from '@/lib/sentry';
 
 export {
@@ -66,6 +68,8 @@ function useSessionBootstrap() {
         }
       } else {
         setUser(null);
+        useHexStore.getState().reset(); // drop the previous account's hex ownership
+        useNotificationStore.getState().reset(); // and its unread badge
       }
     });
 

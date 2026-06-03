@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.charan121.hexa"
+      "bundleIdentifier": "com.charan121.hexa",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -41,6 +44,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d9fc8001-4191-40e6-b51a-be796c9bfd67"
+      }
     }
   }
 }

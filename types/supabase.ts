@@ -109,6 +109,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           id: number
+          message: string | null
           status: string
           user_id: string
         }
@@ -118,6 +119,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: never
+          message?: string | null
           status?: string
           user_id: string
         }
@@ -127,6 +129,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: never
+          message?: string | null
           status?: string
           user_id?: string
         }
@@ -174,6 +177,7 @@ export type Database = {
           clan_id: string
           created_at: string
           id: number
+          kind: string
           user_id: string
         }
         Insert: {
@@ -181,6 +185,7 @@ export type Database = {
           clan_id: string
           created_at?: string
           id?: never
+          kind?: string
           user_id: string
         }
         Update: {
@@ -188,6 +193,7 @@ export type Database = {
           clan_id?: string
           created_at?: string
           id?: never
+          kind?: string
           user_id?: string
         }
         Relationships: [
@@ -597,6 +603,11 @@ export type Database = {
         Args: { p_h3: string; p_lat: number; p_lng: number }
         Returns: Json
       }
+      clan_display_name: { Args: { p_id: string }; Returns: string }
+      clan_log: {
+        Args: { p_actor: string; p_body: string; p_clan_id: string }
+        Returns: undefined
+      }
       clan_members: {
         Args: { p_clan_id: string }
         Returns: {
@@ -668,7 +679,10 @@ export type Database = {
       join_clan: { Args: { p_clan_id: string }; Returns: Json }
       kick_member: { Args: { p_target_user_id: string }; Returns: Json }
       leave_clan: { Args: never; Returns: Json }
-      request_to_join: { Args: { p_clan_id: string }; Returns: Json }
+      request_to_join: {
+        Args: { p_clan_id: string; p_message?: string }
+        Returns: Json
+      }
       respond_join_request: {
         Args: { p_accept: boolean; p_request_id: number }
         Returns: Json
@@ -686,6 +700,24 @@ export type Database = {
           p_name?: string
         }
         Returns: Json
+      }
+      user_card: {
+        Args: { p_id: string }
+        Returns: {
+          captures: number
+          clan_id: string
+          clan_name: string
+          clan_role: string
+          current_round_points: number
+          display_name: string
+          friendship: string
+          friendship_id: number
+          ghost_mode: boolean
+          hex_colour: string
+          id: string
+          level: number
+          username: string
+        }[]
       }
     }
     Enums: {

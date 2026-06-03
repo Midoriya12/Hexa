@@ -10,23 +10,33 @@ type Owner = HexFeatureProps['owner'];
 interface HexState {
   fc: HexCollection | null;
   loading: boolean;
-  /** Load the grid + ownership once (no-op if already loaded unless force). */
+  /** Whose ownership the current `fc` was computed for (null = signed out / unloaded). */
+  loadedFor: string | null;
+  /** Load the grid + ownership. No-op only when already loaded FOR THE SAME user (unless force);
+   *  a different user (e.g. after switching accounts) forces a refetch so 'you'/'other' is correct. */
   load: (myId: string | null, force?: boolean) => Promise<void>;
   /** Optimistically set one hex's owner (e.g. to 'you' right after a capture). */
   setOwner: (h3: string, owner: Owner) => void;
   /** Owner of a hex, or undefined if it isn't a playable hex. */
   ownerOf: (h3: string) => Owner | undefined;
+  /** Clear all hex state (call on sign-out so the next account never sees stale ownership). */
+  reset: () => void;
 }
 
 export const useHexStore = create<HexState>((set, get) => ({
   fc: null,
   loading: false,
+  loadedFor: null,
   load: async (myId, force = false) => {
-    if (get().loading || (get().fc && !force)) return;
+    const st = get();
+    if (st.loading) return;
+    // Reload when the grid is for a DIFFERENT user — otherwise account A's hexes would stay
+    // flagged 'you' and render in account B's colour. Same user + already loaded = no-op.
+    if (st.fc && st.loadedFor === myId && !force) return;
     set({ loading: true });
     try {
       const fc = await fetchHexes(myId);
-      set({ fc, loading: false });
+      set({ fc, loading: false, loadedFor: myId });
     } catch {
       set({ loading: false }); // map renders without the grid; tracker simply finds no hexes
     }
@@ -40,4 +50,5 @@ export const useHexStore = create<HexState>((set, get) => ({
     set({ fc: { type: 'FeatureCollection', features } });
   },
   ownerOf: (h3) => get().fc?.features.find((f) => f.properties.h3 === h3)?.properties.owner,
+  reset: () => set({ fc: null, loading: false, loadedFor: null }),
 }));
