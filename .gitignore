@@ -54,3 +54,6 @@ docs/reference/intvl-screenshots/
 
 # EAS / Expo build artifacts
 dist/
+
+# hex seeder Overpass tile cache (regenerated on demand; tens of MB)
+scripts/.cache/
