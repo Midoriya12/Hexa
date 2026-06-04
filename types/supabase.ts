@@ -41,27 +41,33 @@ export type Database = {
     Tables: {
       captures: {
         Row: {
+          capture_type: string
           captured_at: string
           h3_index: string
           id: number
           ip_awarded: number
           prev_owner_id: string | null
+          round_id: string | null
           user_id: string
         }
         Insert: {
+          capture_type?: string
           captured_at?: string
           h3_index: string
           id?: never
           ip_awarded: number
           prev_owner_id?: string | null
+          round_id?: string | null
           user_id: string
         }
         Update: {
+          capture_type?: string
           captured_at?: string
           h3_index?: string
           id?: never
           ip_awarded?: number
           prev_owner_id?: string | null
+          round_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -271,6 +277,39 @@ export type Database = {
           },
         ]
       }
+      daily_activity: {
+        Row: {
+          ist_day: string
+          rp_earned: number
+          user_id: string
+        }
+        Insert: {
+          ist_day: string
+          rp_earned?: number
+          user_id: string
+        }
+        Update: {
+          ist_day?: string
+          rp_earned?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_activity_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_activity_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           addressee_id: string
@@ -326,21 +365,30 @@ export type Database = {
       }
       hex_ownership: {
         Row: {
+          block_until: string | null
           captured_at: string
+          fresh_paint_until: string | null
           h3_index: string
           ip_value: number
+          last_visited_at: string | null
           owner_id: string
         }
         Insert: {
+          block_until?: string | null
           captured_at?: string
+          fresh_paint_until?: string | null
           h3_index: string
           ip_value?: number
+          last_visited_at?: string | null
           owner_id: string
         }
         Update: {
+          block_until?: string | null
           captured_at?: string
+          fresh_paint_until?: string | null
           h3_index?: string
           ip_value?: number
+          last_visited_at?: string | null
           owner_id?: string
         }
         Relationships: [
@@ -379,6 +427,7 @@ export type Database = {
           is_active: boolean | null
           neighbourhood: string | null
           pincode: string | null
+          pph_value: number | null
         }
         Insert: {
           boundary: Json
@@ -391,6 +440,7 @@ export type Database = {
           is_active?: boolean | null
           neighbourhood?: string | null
           pincode?: string | null
+          pph_value?: number | null
         }
         Update: {
           boundary?: Json
@@ -403,8 +453,117 @@ export type Database = {
           is_active?: boolean | null
           neighbourhood?: string | null
           pincode?: string | null
+          pph_value?: number | null
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          data: Json
+          id: number
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          data?: Json
+          id?: never
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          data?: Json
+          id?: never
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rent_runs: {
+        Row: {
+          ran_at: string
+          run_hour: string
+          total_minted: number
+          users_paid: number
+        }
+        Insert: {
+          ran_at?: string
+          run_hour: string
+          total_minted: number
+          users_paid: number
+        }
+        Update: {
+          ran_at?: string
+          run_hour?: string
+          total_minted?: number
+          users_paid?: number
+        }
+        Relationships: []
+      }
+      round_results: {
+        Row: {
+          points: number
+          rank: number
+          round_id: string
+          snapshot_at: string
+          user_id: string
+        }
+        Insert: {
+          points: number
+          rank: number
+          round_id: string
+          snapshot_at?: string
+          user_id: string
+        }
+        Update: {
+          points?: number
+          rank?: number
+          round_id?: string
+          snapshot_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "round_results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "round_results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
@@ -603,6 +762,7 @@ export type Database = {
         Args: { p_h3: string; p_lat: number; p_lng: number }
         Returns: Json
       }
+      check_level_up: { Args: { p_uid: string }; Returns: undefined }
       clan_display_name: { Args: { p_id: string }; Returns: string }
       clan_log: {
         Args: { p_actor: string; p_body: string; p_clan_id: string }
@@ -672,6 +832,10 @@ export type Database = {
         Returns: Json
       }
       disband_clan: { Args: never; Returns: Json }
+      grant_points: {
+        Args: { p_lp_extra?: number; p_rp: number; p_uid: string }
+        Returns: undefined
+      }
       hexa_point_in_hex: {
         Args: { p_boundary: Json; p_lat: number; p_lng: number }
         Returns: boolean
@@ -696,14 +860,20 @@ export type Database = {
       join_clan: { Args: { p_clan_id: string }; Returns: Json }
       kick_member: { Args: { p_target_user_id: string }; Returns: Json }
       leave_clan: { Args: never; Returns: Json }
+      level_for_lp: { Args: { p_lp: number }; Returns: number }
+      level_name: { Args: { p_level: number }; Returns: string }
+      mark_notifications_read: { Args: never; Returns: undefined }
+      my_rent_rate: { Args: never; Returns: number }
       request_to_join: {
         Args: { p_clan_id: string; p_message?: string }
         Returns: Json
       }
+      reset_round: { Args: { p_round_id?: string }; Returns: Json }
       respond_join_request: {
         Args: { p_accept: boolean; p_request_id: number }
         Returns: Json
       }
+      run_hourly_economy: { Args: never; Returns: Json }
       set_member_role: {
         Args: { p_role: string; p_target_user_id: string }
         Returns: Json
