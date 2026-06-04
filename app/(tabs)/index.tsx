@@ -14,6 +14,7 @@ import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/com
 import { Avatar } from '@/components/ui';
 import { HexMap, type HexMapHandle } from '@/components/map/HexMap';
 import { HexInfo } from '@/components/map/HexInfo';
+import { MedalChip } from '@/components/shared/MedalChip';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { fetchTopPlayers, type LeaderPlayer } from '@/lib/supabase/leaderboard';
@@ -143,8 +144,9 @@ export default function PlayScreen() {
         points: m.points,
         sub: m.isOwner ? 'Owner' : `Level ${m.level}`,
         you: m.you,
+        medal: null as string | null,
       }))
-    : topPlayers.map((p, i) => ({ key: p.id || String(i), id: p.id, rank: i + 1, name: p.name, points: p.points, sub: `Level ${p.level}`, you: p.id === user?.id }));
+    : topPlayers.map((p, i) => ({ key: p.id || String(i), id: p.id, rank: i + 1, name: p.name, points: p.points, sub: `Level ${p.level}`, you: p.id === user?.id, medal: p.equippedMedal }));
 
   return (
     <View className="flex-1 bg-ink-50">
@@ -293,7 +295,10 @@ export default function PlayScreen() {
                         {m.rank}
                       </Text>
                       <Avatar size={32} name={m.name} />
-                      <Text className="ml-3 flex-1 text-heading-sm text-ink-900">{m.name}</Text>
+                      <View className="ml-3 flex-1 flex-row items-center gap-1.5">
+                        <Text numberOfLines={1} className="flex-shrink text-heading-sm text-ink-900">{m.name}</Text>
+                        <MedalChip medalId={m.medal} size={14} />
+                      </View>
                       <View className="items-end">
                         <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">
                           {m.points.toLocaleString('en-IN')}

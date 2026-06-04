@@ -22,6 +22,7 @@ import {
 
 import { Avatar, Badge } from '@/components/ui';
 import { HexIcon } from '@/components/shared/HexIcon';
+import { MedalChip } from '@/components/shared/MedalChip';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { supabase } from '@/lib/supabase/client';
 import { updateOwnUser } from '@/lib/supabase/auth';
@@ -162,7 +163,10 @@ export default function MeScreen() {
         <View className="flex-row items-center">
           <Avatar size={64} name={user?.display_name ?? user?.username ?? undefined} uri={user?.avatar_url ?? undefined} />
           <View className="ml-4 flex-1">
-            <Text className="text-heading-lg text-ink-900">{user?.display_name ?? '—'}</Text>
+            <View className="flex-row items-center gap-1.5">
+              <Text numberOfLines={1} className="flex-shrink text-heading-lg text-ink-900">{user?.display_name ?? '—'}</Text>
+              <MedalChip medalId={user?.equipped_medal} size={16} />
+            </View>
             <Text className="text-body-md text-ink-700">@{user?.username ?? '—'}</Text>
           </View>
           <Badge tone="saffron" label={`L${level} · ${levelName(level)}`} />
@@ -175,20 +179,21 @@ export default function MeScreen() {
           <DashStat value={`${rentPerHr.toLocaleString('en-IN')}/hr`} label="Rent" />
         </View>
 
-        {/* XP-to-next bar (real lifetime-points progress) */}
-        <View className="mt-4">
+        {/* XP bar — tap through to the Levels ladder */}
+        <Pressable className="mt-4" onPress={() => router.push('/levels' as Href)}>
           <View className="mb-1 flex-row justify-between">
             <Text className="text-label-sm uppercase text-ink-700">
-              {xp.atMax ? 'Max level' : `${xp.toNext.toLocaleString('en-IN')} XP to ${levelName(level + 1)}`}
+              {xp.atMax ? 'Max level — Mayor' : `${xp.toNext.toLocaleString('en-IN')} XP to ${levelName(level + 1)}`}
             </Text>
-            <Text className="text-label-sm text-ink-700" style={{ fontVariant: ['tabular-nums'] }}>
-              {xp.atMax ? lp.toLocaleString('en-IN') : `${xp.into.toLocaleString('en-IN')} / ${xp.span.toLocaleString('en-IN')}`}
-            </Text>
+            <Text className="text-label-sm font-semibold text-saffron-700">Levels ›</Text>
           </View>
           <View className="h-2 overflow-hidden rounded-full bg-ink-300">
             <View className="h-full rounded-full bg-saffron-600" style={{ width: `${Math.round(xp.pct * 100)}%` }} />
           </View>
-        </View>
+          <Text className="mt-1 text-label-sm text-ink-600" style={{ fontVariant: ['tabular-nums'] }}>
+            {xp.atMax ? `${lp.toLocaleString('en-IN')} lifetime points` : `${xp.into.toLocaleString('en-IN')} / ${xp.span.toLocaleString('en-IN')} XP`}
+          </Text>
+        </Pressable>
 
         {/* Daily streak (display-corrected) */}
         <View className="mt-3 flex-row items-center">

@@ -8,12 +8,13 @@ export interface LeaderPlayer {
   level: number;
   points: number;
   colour: string | null;
+  equippedMedal: string | null;
 }
 
 export async function fetchTopPlayers(limit = 50): Promise<LeaderPlayer[]> {
   const { data, error } = await supabase
     .from('public_users')
-    .select('id, display_name, username, level, current_round_points, hex_colour')
+    .select('id, display_name, username, level, current_round_points, hex_colour, equipped_medal')
     .not('ghost_mode', 'is', true) // keep false + null; hide only ghost-mode players
     .order('current_round_points', { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -24,5 +25,6 @@ export async function fetchTopPlayers(limit = 50): Promise<LeaderPlayer[]> {
     level: u.level ?? 1,
     points: u.current_round_points ?? 0,
     colour: u.hex_colour ?? null,
+    equippedMedal: u.equipped_medal ?? null,
   }));
 }

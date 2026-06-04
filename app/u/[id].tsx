@@ -8,6 +8,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo
 import { IconChevronLeft } from '@/components/ui/Icon';
 
 import { Avatar, Badge, Button } from '@/components/ui';
+import { MedalChip } from '@/components/shared/MedalChip';
 import { fetchUserProfile, type UserProfile } from '@/lib/supabase/profile';
 import { respondToRequest, sendRequest } from '@/lib/supabase/friends';
 import { colors } from '@/theme';
@@ -125,7 +126,10 @@ export default function ProfileScreen() {
               <View className="rounded-full p-1" style={{ borderWidth: 3, borderColor: profile.colour || colors.player.saffron }}>
                 <Avatar size={96} name={profile.name} />
               </View>
-              <Text className="mt-3 text-display-sm text-ink-900">{profile.name}</Text>
+              <View className="mt-3 flex-row items-center gap-2">
+                <Text className="text-display-sm text-ink-900">{profile.name}</Text>
+                <MedalChip medalId={profile.equippedMedal} size={20} />
+              </View>
               <Text className="text-body-md text-ink-700">@{profile.username ?? '—'}</Text>
               <View className="mt-2 flex-row items-center gap-2">
                 <Badge tone="saffron" label={`Level ${profile.level}`} />

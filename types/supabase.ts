@@ -653,6 +653,7 @@ export type Database = {
           daily_cap_reset_at: string | null
           device_fingerprint: string | null
           display_name: string | null
+          equipped_medal: string | null
           flags: Json | null
           ghost_mode: boolean | null
           hex_colour: string | null
@@ -686,6 +687,7 @@ export type Database = {
           daily_cap_reset_at?: string | null
           device_fingerprint?: string | null
           display_name?: string | null
+          equipped_medal?: string | null
           flags?: Json | null
           ghost_mode?: boolean | null
           hex_colour?: string | null
@@ -719,6 +721,7 @@ export type Database = {
           daily_cap_reset_at?: string | null
           device_fingerprint?: string | null
           display_name?: string | null
+          equipped_medal?: string | null
           flags?: Json | null
           ghost_mode?: boolean | null
           hex_colour?: string | null
@@ -744,6 +747,13 @@ export type Database = {
             columns: ["clan_id"]
             isOneToOne: false
             referencedRelation: "clans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_equipped_medal_fkey"
+            columns: ["equipped_medal"]
+            isOneToOne: false
+            referencedRelation: "medals"
             referencedColumns: ["id"]
           },
         ]
@@ -800,6 +810,7 @@ export type Database = {
           avatar_url: string | null
           current_round_points: number | null
           display_name: string | null
+          equipped_medal: string | null
           ghost_mode: boolean | null
           hex_colour: string | null
           id: string | null
@@ -810,6 +821,7 @@ export type Database = {
           avatar_url?: string | null
           current_round_points?: number | null
           display_name?: string | null
+          equipped_medal?: string | null
           ghost_mode?: boolean | null
           hex_colour?: string | null
           id?: string | null
@@ -820,13 +832,22 @@ export type Database = {
           avatar_url?: string | null
           current_round_points?: number | null
           display_name?: string | null
+          equipped_medal?: string | null
           ghost_mode?: boolean | null
           hex_colour?: string | null
           id?: string | null
           level?: number | null
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_equipped_medal_fkey"
+            columns: ["equipped_medal"]
+            isOneToOne: false
+            referencedRelation: "medals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -852,6 +873,7 @@ export type Database = {
           avatar_url: string | null
           current_round_points: number | null
           display_name: string | null
+          equipped_medal: string | null
           ghost_mode: boolean | null
           hex_colour: string | null
           id: string | null
@@ -910,6 +932,7 @@ export type Database = {
         Returns: Json
       }
       disband_clan: { Args: never; Returns: Json }
+      equip_medal: { Args: { p_medal_id: string }; Returns: undefined }
       grant_points: {
         Args: { p_lp_extra?: number; p_rp: number; p_uid: string }
         Returns: undefined
@@ -976,6 +999,7 @@ export type Database = {
           clan_role: string
           current_round_points: number
           display_name: string
+          equipped_medal: string
           friendship: string
           friendship_id: number
           ghost_mode: boolean

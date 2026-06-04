@@ -4,6 +4,25 @@ import { supabase } from './client';
 
 export type MedalTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
+// Static id→tier map (the 8 launch medals are fixed/seeded) so a name-badge can render the right
+// tier colour without a DB round-trip per row.
+export const MEDAL_TIER: Record<string, MedalTier> = {
+  first_blood: 'bronze',
+  week_one: 'bronze',
+  centurion: 'silver',
+  insomniac: 'bronze',
+  month_one: 'silver',
+  monsoon_warrior: 'silver',
+  neighbourhood_king: 'gold',
+  bridge_crosser: 'bronze',
+};
+
+/** Equip a medal beside your name (null = unequip). Server enforces you own it. */
+export async function equipMedal(medalId: string | null): Promise<void> {
+  const { error } = await supabase.rpc('equip_medal', { p_medal_id: (medalId ?? null) as string });
+  if (error) throw error;
+}
+
 export interface UserMedal {
   id: string;
   name: string;

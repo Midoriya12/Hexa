@@ -103,6 +103,10 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
   const myId = user?.id ?? null;
   const myColor = user?.hex_colour || '#FF6F00'; // your captured hexes render in your chosen colour
   const lightPreset = useMemo(() => (isDaytime() ? 'day' : 'night'), []);
+  // The unowned grid outline must read on BOTH basemaps: a soft orange works by day but goes
+  // muddy/brown on the dark night basemap, so at night use a brighter, fully-opaque amber.
+  const isNight = lightPreset === 'night';
+  const gridLine = isNight ? '#FFC83D' : 'rgba(255,140,0,0.95)';
   const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
 
   // Your OWN hexes load bounds-independently (territory shows at every zoom); reloads on account
@@ -307,8 +311,8 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
               filter={['==', ['get', 'owner'], 'none']}
               minZoomLevel={12}
               style={{
-                lineColor: 'rgba(255,140,0,0.9)',
-                lineWidth: ['interpolate', ['linear'], ['zoom'], 12, 1.2, 17, 2.8],
+                lineColor: gridLine,
+                lineWidth: ['interpolate', ['linear'], ['zoom'], 12, isNight ? 1.8 : 1.2, 17, isNight ? 3.4 : 2.8],
                 lineJoin: 'round',
               }}
             />

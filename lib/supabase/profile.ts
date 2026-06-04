@@ -23,6 +23,8 @@ export interface UserProfile {
   friendshipId: number | null;
   /** True when you're looking at your own profile. */
   isYou: boolean;
+  /** The medal they've equipped beside their name (null = none). */
+  equippedMedal: string | null;
 }
 
 export async function fetchUserProfile(id: string): Promise<UserProfile | null> {
@@ -48,5 +50,6 @@ export async function fetchUserProfile(id: string): Promise<UserProfile | null> 
     friendship: (row.friendship ?? 'none') as FriendStatus,
     friendshipId: row.friendship_id != null ? Number(row.friendship_id) : null,
     isYou: me != null && me === (row.id ?? id),
+    equippedMedal: row.equipped_medal ?? null,
   };
 }
