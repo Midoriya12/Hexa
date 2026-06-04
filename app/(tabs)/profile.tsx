@@ -23,8 +23,10 @@ import {
 import { Avatar, Badge } from '@/components/ui';
 import { HexIcon } from '@/components/shared/HexIcon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { supabase } from '@/lib/supabase/client';
 import { updateOwnUser } from '@/lib/supabase/auth';
 import { fetchMyWalks } from '@/lib/supabase/walks';
+import { levelName, xpProgress } from '@/lib/points';
 import { useUserStore } from '@/stores/userStore';
 import { colors } from '@/theme';
 import type { WalkRow } from '@/types/database';
@@ -94,16 +96,21 @@ export default function MeScreen() {
 
   const points = user?.current_round_points ?? 0;
   const hexes = user?.current_held_hexes ?? 0;
-  const rentPerHr = hexes * 3; // flat PPH for now (rarity tiers + hourly engine = Phase 5)
+  const lp = Number(user?.lifetime_points ?? 0);
+  const xp = xpProgress(lp, level);
   const myColour = user?.hex_colour || colors.player.saffron;
 
   const [walks, setWalks] = useState<WalkRow[]>([]);
+  const [rentPerHr, setRentPerHr] = useState(0); // authoritative hourly rent (my_rent_rate RPC)
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       fetchMyWalks()
         .then((w) => alive && setWalks(w))
         .catch(() => undefined);
+      void supabase.rpc('my_rent_rate').then(({ data, error }) => {
+        if (alive && !error) setRentPerHr(data ?? 0);
+      });
       return () => {
         alive = false;
       };
@@ -137,26 +144,28 @@ export default function MeScreen() {
             <Text className="text-heading-lg text-ink-900">{user?.display_name ?? '—'}</Text>
             <Text className="text-body-md text-ink-700">@{user?.username ?? '—'}</Text>
           </View>
-          <Badge tone="saffron" label={`Level ${level}`} />
+          <Badge tone="saffron" label={`L${level} · ${levelName(level)}`} />
         </View>
 
-        {/* Dashboard: points · hexes · rent */}
+        {/* Dashboard: round points · hexes held · rent/hr */}
         <View className="mt-4 flex-row gap-3">
           <DashStat value={points.toLocaleString('en-IN')} label="Points" />
           <DashStat value={String(hexes)} label="Hexes" />
-          <DashStat value={`${rentPerHr}/hr`} label="Rent" />
+          <DashStat value={`${rentPerHr.toLocaleString('en-IN')}/hr`} label="Rent" />
         </View>
 
-        {/* XP-to-next bar */}
+        {/* XP-to-next bar (real lifetime-points progress) */}
         <View className="mt-4">
           <View className="mb-1 flex-row justify-between">
-            <Text className="text-label-sm uppercase text-ink-700">{500} XP to Level {level + 1}</Text>
+            <Text className="text-label-sm uppercase text-ink-700">
+              {xp.atMax ? 'Max level' : `${xp.toNext.toLocaleString('en-IN')} XP to ${levelName(level + 1)}`}
+            </Text>
             <Text className="text-label-sm text-ink-700" style={{ fontVariant: ['tabular-nums'] }}>
-              0 / 500
+              {xp.atMax ? lp.toLocaleString('en-IN') : `${xp.into.toLocaleString('en-IN')} / ${xp.span.toLocaleString('en-IN')}`}
             </Text>
           </View>
           <View className="h-2 overflow-hidden rounded-full bg-ink-300">
-            <View className="h-full w-[4%] rounded-full bg-saffron-600" />
+            <View className="h-full rounded-full bg-saffron-600" style={{ width: `${Math.round(xp.pct * 100)}%` }} />
           </View>
         </View>
 

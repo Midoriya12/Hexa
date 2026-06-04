@@ -22,6 +22,7 @@ interface CaptureRow {
   prev_owner_id: string | null;
   ip_awarded: number;
   captured_at: string;
+  capture_type: string;
 }
 
 /** Resolve capture rows → feed items (capturer name + hex neighbourhood). Shared by both feeds. */
@@ -48,7 +49,7 @@ async function mapCaptures(caps: CaptureRow[]): Promise<FeedItem[]> {
         neighbourhood: hMap.get(c.h3_index) || 'Bengaluru',
         ip: c.ip_awarded,
         capturedAt: c.captured_at,
-        stolen: !!c.prev_owner_id,
+        stolen: c.capture_type === 'steal',
       };
     });
 }
@@ -56,7 +57,7 @@ async function mapCaptures(caps: CaptureRow[]): Promise<FeedItem[]> {
 export async function fetchFeed(limit = 40): Promise<FeedItem[]> {
   const { data: caps, error } = await supabase
     .from('captures')
-    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at')
+    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at, capture_type')
     .order('captured_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -77,7 +78,7 @@ export async function fetchFollowingFeed(limit = 40): Promise<FeedItem[]> {
   if (!friendIds.length) return [];
   const { data: caps, error } = await supabase
     .from('captures')
-    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at')
+    .select('id, h3_index, user_id, prev_owner_id, ip_awarded, captured_at, capture_type')
     .in('user_id', friendIds)
     .order('captured_at', { ascending: false })
     .limit(limit);

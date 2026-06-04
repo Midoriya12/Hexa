@@ -12,6 +12,7 @@ export interface CaptureResult {
   ok: boolean;
   h3: string;
   ip: number;
+  type: 'neutral' | 'steal';
   stolen_from: string | null;
 }
 
@@ -22,6 +23,9 @@ export type CaptureError =
   | 'outside_hex'
   | 'already_owned'
   | 'cooldown'
+  | 'block_cooldown' // hex captured by anyone in the last 15 min — locked
+  | 'fresh_paint' // freshly-taken hex, steal-protected for 30 min
+  | 'protected' // would drop the victim below their safe held-hex floor
   | 'unknown';
 
 const KNOWN_ERRORS: CaptureError[] = [
@@ -30,6 +34,9 @@ const KNOWN_ERRORS: CaptureError[] = [
   'bad_coords',
   'outside_hex',
   'already_owned',
+  'block_cooldown',
+  'fresh_paint',
+  'protected',
   'cooldown',
 ];
 

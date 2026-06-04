@@ -39,13 +39,13 @@ export interface TrackState {
   /** Smoothed position [lat,lng] for the on-map dot + camera (null until the first good fix). */
   position: { lat: number; lng: number } | null;
   /** Set on each successful capture (drives the success card); cleared on a new session. */
-  lastCapture: { ip: number; pph: number; h3: string; nonce: number } | null;
+  lastCapture: { ip: number; pph: number; h3: string; nonce: number; type: 'neutral' | 'steal' } | null;
   message: string;
 }
 
 const EARTH_M_PER_DEG = 111_320;
 const HEX_REACH_M = 80; // res-10 circumradius ~75m + a little slack
-const FLAT_PPH = 3; // common-hex rent/hr (rarity tiers + the hourly engine come in Phase 5)
+const FLAT_PPH = 5; // rent/hr per hex (Phase 5 hourly engine; the Me dashboard reads my_rent_rate() authoritatively)
 const SMOOTH_ALPHA = 0.25; // EMA weight for a normal fix
 const SPIKE_M = 40; // a jump bigger than this is treated as a GPS spike and damped hard
 
@@ -91,9 +91,9 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
   const setUser = useUserStore((s) => s.setUser);
   const setOwner = useHexStore((s) => s.setOwner);
 
-  // Level-scaled dwell: 60s at L1 → 20s floor (patch #39).
+  // Level-scaled dwell: 60s at L1 → 20s floor by L5 (patch #39; -10s/level reaches the floor).
   const level = user?.level ?? 1;
-  const dwellSec = Math.max(20, 60 - (level - 1) * 5);
+  const dwellSec = Math.max(20, 60 - (level - 1) * 10);
   const dwellMs = dwellSec * 1000;
   const myId = user?.id ?? null;
 
@@ -279,8 +279,8 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
             currentHex: h3,
             dwellProgress: 0,
             capturedCount: countRef.current,
-            lastCapture: { ip: res.result.ip, pph: FLAT_PPH, h3, nonce: captureNonceRef.current },
-            message: `Hex captured! +${res.result.ip} pts`,
+            lastCapture: { ip: res.result.ip, pph: FLAT_PPH, h3, nonce: captureNonceRef.current, type: res.result.type },
+            message: `${res.result.type === 'steal' ? 'Hex stolen!' : 'Hex captured!'} +${res.result.ip} pts`,
           }));
           if (myId) {
             try {
@@ -291,13 +291,26 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
             }
           }
         } else {
-          dwellStartRef.current = res.error === 'cooldown' ? null : Date.now();
+          // Locked/protected hexes: don't re-arm the dwell — hysteresis parks you here without
+          // hammering the RPC every cycle until you walk away. Transient errors retry next dwell.
+          const noRetry =
+            res.error === 'cooldown' ||
+            res.error === 'block_cooldown' ||
+            res.error === 'fresh_paint' ||
+            res.error === 'protected';
+          dwellStartRef.current = noRetry ? null : Date.now();
           const message =
             res.error === 'outside_hex'
               ? 'Move into the hex to capture.'
-              : res.error === 'cooldown'
-                ? 'Just captured — head to another hex.'
-                : 'Capture failed — trying again.';
+              : res.error === 'block_cooldown'
+                ? 'Just taken — locked for a few minutes.'
+                : res.error === 'fresh_paint'
+                  ? "Freshly painted — can't steal it yet."
+                  : res.error === 'protected'
+                    ? 'Protected — part of their home turf.'
+                    : res.error === 'cooldown'
+                      ? 'Just captured — head to another hex.'
+                      : 'Capture failed — trying again.';
           setState((s) => ({ ...s, status: 'error', dwellProgress: 0, message }));
         }
         capturingRef.current = false;

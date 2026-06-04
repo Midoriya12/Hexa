@@ -60,7 +60,7 @@ export default function StartScreen() {
     hexes: number;
     points: number;
   } | null>(null);
-  const [card, setCard] = useState<{ ip: number; pph: number } | null>(null);
+  const [card, setCard] = useState<{ ip: number; pph: number; stolen: boolean } | null>(null);
   const [route, setRoute] = useState<GeoJSON.LineString | null>(null);
   const [routing, setRouting] = useState(false);
   const [routeToast, setRouteToast] = useState<string | null>(null);
@@ -83,7 +83,7 @@ export default function StartScreen() {
   useEffect(() => {
     if (tracker.lastCapture && tracker.lastCapture.nonce !== seenNonce.current) {
       seenNonce.current = tracker.lastCapture.nonce;
-      setCard({ ip: tracker.lastCapture.ip, pph: tracker.lastCapture.pph });
+      setCard({ ip: tracker.lastCapture.ip, pph: tracker.lastCapture.pph, stolen: tracker.lastCapture.type === 'steal' });
     }
   }, [tracker.lastCapture]);
 
@@ -264,6 +264,7 @@ export default function StartScreen() {
         visible={!!card}
         ip={card?.ip ?? 0}
         pph={card?.pph ?? 0}
+        stolen={card?.stolen ?? false}
         onClose={() => setCard(null)}
       />
       <WalkSummary

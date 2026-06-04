@@ -23,17 +23,21 @@ export function CaptureSuccess({
   visible,
   ip,
   pph,
+  stolen = false,
   onClose,
 }: {
   visible: boolean;
   ip: number;
   pph: number;
+  stolen?: boolean;
   onClose: () => void;
 }) {
   const { width } = Dimensions.get('window');
   const share = () =>
     void Share.share({
-      message: `I just captured a hex on Hexa! +${ip} points, now earning ${pph}/hr. 🟧 Come take it back. #Hexa`,
+      message: stolen
+        ? `I just STOLE a hex on Hexa! +${ip} points, now earning ${pph}/hr. 🟧 Come take it back. #Hexa`
+        : `I just captured a hex on Hexa! +${ip} points, now earning ${pph}/hr. 🟧 Come take it back. #Hexa`,
     });
 
   return (
@@ -43,7 +47,7 @@ export function CaptureSuccess({
           <View className="h-16 w-16 items-center justify-center rounded-2xl bg-saffron-600/20">
             <HexIcon size={40} color={colors.saffron[600]} />
           </View>
-          <Text className="mt-3 text-heading-lg font-extrabold text-ink-900">Hex captured!</Text>
+          <Text className="mt-3 text-heading-lg font-extrabold text-ink-900">{stolen ? 'Hex stolen! 🔥' : 'Hex captured!'}</Text>
           <View className="mt-5 w-full flex-row justify-around">
             <Stat value={`+${ip}`} label="Instant points" />
             <Stat value={`${pph}/hr`} label="Rent" />
