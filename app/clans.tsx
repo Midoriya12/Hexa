@@ -286,7 +286,7 @@ export default function ClansScreen() {
               {[
                 { v: `${myClan.memberCount}/${CAP}`, l: 'Members' },
                 { v: (stats?.totalPoints ?? 0).toLocaleString('en-IN'), l: 'Total points' },
-                { v: (stats?.totalHexes ?? 0).toLocaleString('en-IN'), l: 'Total hexes' },
+                { v: (stats?.totalHexes ?? 0).toLocaleString('en-IN'), l: 'Hexes held' },
               ].map((s) => (
                 <View key={s.l} className="flex-1 items-center rounded-md border border-ink-400 bg-ink-100 py-2">
                   <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm font-extrabold text-saffron-600">{s.v}</Text>

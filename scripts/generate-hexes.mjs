@@ -1,30 +1,29 @@
 // generate-hexes.mjs — Hexa hex-grid seeder (run server-side; service-role key bypasses RLS).
 //
-//   node scripts/generate-hexes.mjs                 # full Bangalore, with the OSM exclude filter
-//   node scripts/generate-hexes.mjs --scope=swath   # central swath only (~15-20k cells) for testing
-//   node scripts/generate-hexes.mjs --no-osm        # skip the Overpass filter (fast; UNFILTERED)
+//   node scripts/generate-hexes.mjs                 # full Bangalore, public-place anchored
+//   node scripts/generate-hexes.mjs --scope=swath   # central swath only (smaller) for testing
 //
-// Fills the chosen Bangalore bbox with H3 res-10 cells, DROPS cells whose centre falls inside an
-// OSM "no-go" polygon (water / lakes / reservoirs / rivers / military-army / airport / explicitly-
-// private land — the EXCLUDE-ONLY fairness model Sai requires), and upserts the survivors into the
-// `hexes` table. Cells the filter excludes that ALREADY exist are SOFT-DISABLED (is_active=FALSE),
-// never DELETEd — hex_ownership + captures FK hexes ON DELETE CASCADE, so deleting would wipe
-// players' territory + history. Soft-disabled cells vanish from reads (hexes_in_bbox + the index
-// are partial on is_active=TRUE) and become uncapturable (capture_hex filters is_active).
+// PLACEMENT MODEL (Sai, 2026-06-04): hexes are NOT a wall-to-wall tessellation. They sit only at
+// REACHABLE PUBLIC PLACES pulled from OpenStreetMap — parks, gardens, playgrounds, sports grounds,
+// marketplaces, places of worship, community centres/libraries, transit stops/stations, squares,
+// attractions — each snapped to its H3 res-10 cell, then thinned so no two hexes are within
+// MIN_SPACING_M (~175m), and finally any cell whose centre lands in a NO-GO area (water / lakes /
+// reservoirs / rivers / military-army / airport / explicitly-private land) is dropped. Result: a
+// sparse, walkable, fair set of capture points with real gaps — not a honeycomb blob.
 //
-// Coordinate-order discipline (the #1 seeding bug — verified against the installed type defs):
-//   • h3-js is [lat, lng]:  cellToLatLng -> [lat,lng]
-//   • turf / GeoJSON is [lng, lat]
-//   • cellToBoundary(idx, true) -> [lng,lat] AND a closed ring (pass `true`!)
-//   • polygonToCells(ring, res, true) -> `true` = treat ring as GeoJSON [lng,lat]
+// Reconcile is NON-DESTRUCTIVE: cells no longer in the set are SOFT-DISABLED (is_active=FALSE),
+// never DELETEd (hex_ownership + captures FK hexes ON DELETE CASCADE). Currently-OWNED cells are
+// kept active so no player loses captured territory when the grid is re-shaped.
 //
-// Safe to re-run: upsert is keyed on the h3_index primary key; Overpass tiles are cached on disk.
+// Coordinate-order discipline (verified against the installed type defs):
+//   • h3-js is [lat,lng]:  latLngToCell(lat,lng,res), cellToLatLng -> [lat,lng]
+//   • cellToBoundary(idx, true) -> [lng,lat] closed ring (the TRUE cell; capture validates it)
+// Safe to re-run: upsert keyed on the h3_index PK; Overpass tiles are cached on disk.
 import { readFileSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
-import { cellToBoundary, cellToLatLng, polygonToCells, getHexagonAreaAvg, UNITS } from 'h3-js';
+import { latLngToCell, cellToBoundary, cellToLatLng, getHexagonAreaAvg, UNITS } from 'h3-js';
 import { booleanPointInPolygon, bbox as turfBbox, polygon as turfPolygon } from '@turf/turf';
 
-// Minimal .env.local loader (no dotenv dep). KEY=VALUE, strips matching quotes, skips comments.
 function loadEnv(path) {
   try {
     for (const line of readFileSync(path, 'utf8').split('\n')) {
@@ -41,25 +40,19 @@ function loadEnv(path) {
 loadEnv('.env.local');
 
 const RES = 10;
+const MIN_SPACING_M = 175; // no two hexes closer than this (Sai: ~150-200m apart, with gaps)
 const args = process.argv.slice(2);
 const SCOPE = (args.find((a) => a.startsWith('--scope=')) ?? '--scope=city').split('=')[1];
-const NO_OSM = args.includes('--no-osm');
-const TILE_DEG = 0.05; // Overpass query tile size (one POST per tile; small + fast + cacheable)
+const TILE_DEG = 0.05;
 const CACHE_DIR = 'scripts/.cache/overpass';
 
-// ── Scope bboxes [west, south, east, north] ────────────────────────────────────
-// CITY ≈ Bengaluru urban core (lat 12.83–13.14, lng 77.46–77.78) → ~85k res-10 cells.
-// SWATH ≈ the central built-up belt (the 4 launch clusters + corridor) → ~15-20k cells.
 const BBOXES = {
   city: { west: 77.46, south: 12.83, east: 77.78, north: 13.14 },
   swath: { west: 77.56, south: 12.86, east: 77.72, north: 13.02 },
 };
 const BBOX = BBOXES[SCOPE] ?? BBOXES.city;
 
-// ── Nearest-centroid labelling for pincode + neighbourhood ([lat,lng]). ─────────
-// City-wide so the activity feed ("captured a hex in {neighbourhood}") labels correctly — a sparse
-// list would mislabel e.g. all of Whitefield as "HSR Layout". Coords are area centroids (approx);
-// pincode is the area's representative code (nullable per 002, so approximate is acceptable).
+// City-wide locality labels for the feed ("captured a hex in {neighbourhood}"). [lat,lng].
 const AREAS = [
   { name: 'HSR Layout', pincode: '560102', lat: 12.9116, lng: 77.6446 },
   { name: 'Koramangala', pincode: '560034', lat: 12.9352, lng: 77.6245 },
@@ -101,7 +94,6 @@ const AREAS = [
   { name: 'MG Road', pincode: '560001', lat: 12.9750, lng: 77.6060 },
   { name: 'Domlur', pincode: '560071', lat: 12.9610, lng: 77.6380 },
   { name: 'Ulsoor', pincode: '560008', lat: 12.9810, lng: 77.6260 },
-  { name: 'Wilson Garden', pincode: '560027', lat: 12.9490, lng: 77.5970 },
   { name: 'Girinagar', pincode: '560085', lat: 12.9420, lng: 77.5430 },
   { name: 'Uttarahalli', pincode: '560061', lat: 12.9070, lng: 77.5460 },
   { name: 'Hulimavu', pincode: '560076', lat: 12.8780, lng: 77.6020 },
@@ -110,80 +102,105 @@ const AREAS = [
   { name: 'Kadugodi', pincode: '560067', lat: 12.9930, lng: 77.7600 },
 ];
 
-// ── Overpass: no-go AREAS (exclude-only). bbox order = south,west,north,east. ──
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 const OVERPASS_UA = 'Hexa/1.0 (hex-grid seeder; contact bille.sai12@gmail.com)';
-const overpassQuery = (b) => `[out:json][timeout:90];
+
+// One combined query per tile: PUBLIC POIs (anchors) + NO-GO areas (exclusions). Classified on parse.
+const tileQuery = (b) => `[out:json][timeout:90];
 (
+  nwr["leisure"~"^(park|garden|playground|pitch|sports_centre|stadium|recreation_ground|common)$"](${b});
+  nwr["amenity"~"^(marketplace|place_of_worship|community_centre|library|townhall|social_facility)$"](${b});
+  node["highway"="bus_stop"](${b});
+  nwr["railway"~"^(station|halt|tram_stop)$"](${b});
+  node["public_transport"="station"](${b});
+  nwr["place"="square"](${b});
+  node["tourism"~"^(attraction|viewpoint|artwork)$"](${b});
   way["natural"="water"](${b});
   relation["natural"="water"](${b});
-  way["landuse"="reservoir"](${b});
-  relation["landuse"="reservoir"](${b});
+  way["landuse"~"^(reservoir|military)$"](${b});
+  relation["landuse"~"^(reservoir|military)$"](${b});
   way["waterway"="riverbank"](${b});
   relation["waterway"="riverbank"](${b});
-  way["landuse"="military"](${b});
-  relation["landuse"="military"](${b});
   way["military"](${b});
   relation["military"](${b});
   way["aeroway"="aerodrome"](${b});
   relation["aeroway"="aerodrome"](${b});
-  way["access"="private"]["landuse"](${b});
-  relation["access"="private"]["landuse"](${b});
-  way["access"="no"]["landuse"](${b});
+  way["access"~"^(private|no)$"]["landuse"](${b});
   way["access"="private"]["leisure"](${b});
 );
 out geom;`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** Build closed GeoJSON [lng,lat] rings (turf polygons) from Overpass `out geom;` elements. */
-function elementsToPolygons(elements) {
-  const polys = [];
-  const ringFromGeom = (geom) => {
-    if (!Array.isArray(geom) || geom.length < 4) return null;
-    const ring = geom.map((p) => [p.lon, p.lat]);
-    const [fx, fy] = ring[0];
-    const [lx, ly] = ring[ring.length - 1];
-    if (fx !== lx || fy !== ly) ring.push([fx, fy]);
-    if (ring.length < 4) return null;
-    try {
-      return turfPolygon([ring]);
-    } catch {
-      return null;
-    }
-  };
-  for (const el of elements) {
-    if (el.type === 'way' && el.geometry) {
-      const p = ringFromGeom(el.geometry);
-      if (p) polys.push(p);
-    } else if (el.type === 'relation' && Array.isArray(el.members)) {
-      for (const m of el.members) {
-        if ((m.type === 'way' || m.role === 'outer') && m.geometry) {
-          const p = ringFromGeom(m.geometry);
-          if (p) polys.push(p);
-        }
-      }
-    }
-  }
-  return polys;
+const EARTH_M_PER_DEG = 111_320;
+function haversineM(aLat, aLng, bLat, bLng) {
+  const dLat = (aLat - bLat) * EARTH_M_PER_DEG;
+  const dLng = (aLng - bLng) * EARTH_M_PER_DEG * Math.cos((aLat * Math.PI) / 180);
+  return Math.sqrt(dLat * dLat + dLng * dLng);
 }
 
-/** Fetch one tile's OSM elements (disk-cached), trying each mirror with backoff. Returns []. */
+const isNoGo = (t) =>
+  !!t &&
+  (t.natural === 'water' ||
+    t.landuse === 'reservoir' ||
+    t.landuse === 'military' ||
+    t.military !== undefined ||
+    t.aeroway === 'aerodrome' ||
+    t.waterway === 'riverbank' ||
+    ((t.access === 'private' || t.access === 'no') && (t.landuse !== undefined || t.leisure !== undefined)));
+
+const isPoi = (t) => {
+  if (!t) return false;
+  if (['park', 'garden', 'playground', 'pitch', 'sports_centre', 'stadium', 'recreation_ground', 'common'].includes(t.leisure)) return true;
+  if (['marketplace', 'place_of_worship', 'community_centre', 'library', 'townhall', 'social_facility'].includes(t.amenity)) return true;
+  if (t.highway === 'bus_stop') return true;
+  if (['station', 'halt', 'tram_stop'].includes(t.railway)) return true;
+  if (t.public_transport === 'station') return true;
+  if (t.place === 'square') return true;
+  if (['attraction', 'viewpoint', 'artwork'].includes(t.tourism)) return true;
+  return false;
+};
+
+function ringFromGeom(geom) {
+  if (!Array.isArray(geom) || geom.length < 4) return null;
+  const ring = geom.map((p) => [p.lon, p.lat]);
+  const [fx, fy] = ring[0];
+  const [lx, ly] = ring[ring.length - 1];
+  if (fx !== lx || fy !== ly) ring.push([fx, fy]);
+  if (ring.length < 4) return null;
+  try {
+    return turfPolygon([ring]);
+  } catch {
+    return null;
+  }
+}
+
+// Representative point for a POI element: node coords, or the average of a way/relation's geometry.
+function poiPoint(el) {
+  if (el.type === 'node' && el.lat != null) return { lat: el.lat, lng: el.lon };
+  const pts = [];
+  if (Array.isArray(el.geometry)) for (const p of el.geometry) pts.push(p);
+  if (Array.isArray(el.members)) for (const m of el.members) if (Array.isArray(m.geometry)) for (const p of m.geometry) pts.push(p);
+  if (!pts.length) return null;
+  const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+  const lng = pts.reduce((s, p) => s + p.lon, 0) / pts.length;
+  return { lat, lng };
+}
+
 async function fetchTile(s, w, n, e) {
-  const key = `${s.toFixed(2)}_${w.toFixed(2)}_${n.toFixed(2)}_${e.toFixed(2)}`.replace(/\./g, 'p');
+  const key = `poi_${s.toFixed(2)}_${w.toFixed(2)}_${n.toFixed(2)}_${e.toFixed(2)}`.replace(/\./g, 'p');
   const cachePath = `${CACHE_DIR}/${key}.json`;
   if (existsSync(cachePath)) {
     try {
       return JSON.parse(readFileSync(cachePath, 'utf8')).elements ?? [];
     } catch {
-      /* fall through and refetch */
+      /* refetch */
     }
   }
-  const body = 'data=' + encodeURIComponent(overpassQuery(`${s},${w},${n},${e}`));
+  const body = 'data=' + encodeURIComponent(tileQuery(`${s},${w},${n},${e}`));
   for (let attempt = 0; attempt < OVERPASS_ENDPOINTS.length; attempt++) {
     const endpoint = OVERPASS_ENDPOINTS[attempt];
     const controller = new AbortController();
@@ -203,34 +220,13 @@ async function fetchTile(s, w, n, e) {
       return json.elements ?? [];
     } catch (err) {
       console.warn(`    tile ${key} via ${new URL(endpoint).host} failed (${err.message})`);
-      await sleep(2000 * (attempt + 1)); // backoff before the next mirror
+      await sleep(2000 * (attempt + 1));
     } finally {
       clearTimeout(timer);
     }
   }
-  console.warn(`    ⚠ tile ${key}: all mirrors failed — that tile is left UNFILTERED.`);
+  console.warn(`    ⚠ tile ${key}: all mirrors failed — that tile contributes no POIs/exclusions.`);
   return [];
-}
-
-/** Sweep the bbox in TILE_DEG tiles, collecting no-go polygons (with precomputed bboxes). */
-async function fetchNoGoPolygons() {
-  const tiles = [];
-  for (let s = BBOX.south; s < BBOX.north; s += TILE_DEG) {
-    for (let w = BBOX.west; w < BBOX.east; w += TILE_DEG) {
-      tiles.push({ s, w, n: Math.min(s + TILE_DEG, BBOX.north), e: Math.min(w + TILE_DEG, BBOX.east) });
-    }
-  }
-  console.log(`Overpass: sweeping ${tiles.length} tiles (cached in ${CACHE_DIR})…`);
-  const noGo = [];
-  let i = 0;
-  for (const t of tiles) {
-    i++;
-    const els = await fetchTile(t.s, t.w, t.n, t.e);
-    for (const p of elementsToPolygons(els)) noGo.push({ poly: p, box: turfBbox(p) });
-    if (i % 10 === 0) console.log(`  …${i}/${tiles.length} tiles (${noGo.length} no-go polygons so far)`);
-    await sleep(1200); // be polite to the public mirrors
-  }
-  return noGo;
 }
 
 function nearestArea(lat, lng) {
@@ -246,6 +242,57 @@ function nearestArea(lat, lng) {
   return best;
 }
 
+// Greedy spacing thin-out: keep a cell only if no already-kept cell is within MIN_SPACING_M.
+// Bucketed (3x3 neighbourhood) so it's ~O(n), not O(n^2).
+function spaceOut(cells) {
+  const kept = [];
+  const buckets = new Map();
+  const cellDeg = MIN_SPACING_M / EARTH_M_PER_DEG;
+  const bkey = (lat, lng) => `${Math.floor(lat / cellDeg)}_${Math.floor(lng / cellDeg)}`;
+  for (const c of cells) {
+    const bi = Math.floor(c.lat / cellDeg);
+    const bj = Math.floor(c.lng / cellDeg);
+    let tooClose = false;
+    outer: for (let di = -1; di <= 1 && !tooClose; di++) {
+      for (let dj = -1; dj <= 1; dj++) {
+        const arr = buckets.get(`${bi + di}_${bj + dj}`);
+        if (!arr) continue;
+        for (const k of arr) {
+          if (haversineM(c.lat, c.lng, k.lat, k.lng) < MIN_SPACING_M) {
+            tooClose = true;
+            break outer;
+          }
+        }
+      }
+    }
+    if (tooClose) continue;
+    kept.push(c);
+    const kk = bkey(c.lat, c.lng);
+    if (!buckets.has(kk)) buckets.set(kk, []);
+    buckets.get(kk).push(c);
+  }
+  return kept;
+}
+
+async function fetchColumn(supabase, table, filterActive) {
+  const out = [];
+  const PAGE = 1000;
+  let from = 0;
+  for (;;) {
+    let q = supabase.from(table).select('h3_index').range(from, from + PAGE - 1);
+    if (filterActive) q = q.eq('is_active', true);
+    const { data, error } = await q;
+    if (error) {
+      console.error(`fetch ${table} failed:`, error.message);
+      break;
+    }
+    out.push(...data.map((r) => r.h3_index));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
 async function main() {
   const url = process.env.SUPABASE_URL ?? process.env.EXPO_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -253,105 +300,144 @@ async function main() {
     console.error('Missing SUPABASE_URL / EXPO_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
     process.exit(1);
   }
+  console.log(`Hexa seeder · res ${RES} (~${Math.round(getHexagonAreaAvg(RES, UNITS.m2))} m²/cell) · public-place anchored, ${MIN_SPACING_M}m spacing`);
+  console.log(`Scope: ${SCOPE}  bbox: ${JSON.stringify(BBOX)}`);
 
-  console.log(`Hexa hex-grid seeder · res ${RES} (~${Math.round(getHexagonAreaAvg(RES, UNITS.m2))} m²/cell)`);
-  console.log(`Scope: ${SCOPE}  bbox: ${JSON.stringify(BBOX)}  OSM filter: ${NO_OSM ? 'OFF (--no-osm)' : 'ON'}`);
+  // 1) Sweep tiles → collect POI points + no-go polygons.
+  const tiles = [];
+  for (let s = BBOX.south; s < BBOX.north; s += TILE_DEG)
+    for (let w = BBOX.west; w < BBOX.east; w += TILE_DEG)
+      tiles.push({ s, w, n: Math.min(s + TILE_DEG, BBOX.north), e: Math.min(w + TILE_DEG, BBOX.east) });
+  console.log(`Overpass: sweeping ${tiles.length} tiles (cached in ${CACHE_DIR})…`);
 
-  // 1) Candidate cells filling the bbox. polygonToCells wants a [lng,lat] ring + isGeoJson=true.
-  const ring = [
-    [BBOX.west, BBOX.south],
-    [BBOX.east, BBOX.south],
-    [BBOX.east, BBOX.north],
-    [BBOX.west, BBOX.north],
-    [BBOX.west, BBOX.south],
-  ];
-  const candidates = polygonToCells(ring, RES, true);
-  console.log(`Candidate cells in bbox: ${candidates.length}`);
+  const poiPoints = [];
+  const noGo = [];
+  let i = 0;
+  for (const t of tiles) {
+    i++;
+    const els = await fetchTile(t.s, t.w, t.n, t.e);
+    for (const el of els) {
+      const tags = el.tags;
+      if (isNoGo(tags)) {
+        const p = ringFromGeom(el.geometry);
+        if (p) noGo.push({ poly: p, box: turfBbox(p) });
+      } else if (isPoi(tags)) {
+        const pt = poiPoint(el);
+        if (pt) poiPoints.push(pt);
+      }
+    }
+    if (i % 10 === 0) console.log(`  …${i}/${tiles.length} tiles (${poiPoints.length} POIs, ${noGo.length} no-go so far)`);
+    await sleep(1200);
+  }
+  console.log(`Public POIs: ${poiPoints.length} · no-go polygons: ${noGo.length}`);
 
-  // 2) No-go polygons from OSM (tiled + cached; graceful empty on total failure).
-  const noGo = NO_OSM ? [] : await fetchNoGoPolygons();
-  console.log(`No-go polygons: ${noGo.length}`);
-
-  // 3) Keep cells whose centre is inside ZERO no-go polygons.
-  const rows = [];
-  const excludedIds = [];
-  for (const h3 of candidates) {
-    let lat, lng, boundary;
+  // 2) Snap POIs to res-10 cells (dedupe per cell).
+  const byCell = new Map();
+  for (const p of poiPoints) {
+    let h3;
     try {
-      [lat, lng] = cellToLatLng(h3);
-      boundary = cellToBoundary(h3, true); // [lng,lat], closed ring — the TRUE cell
+      h3 = latLngToCell(p.lat, p.lng, RES);
     } catch {
       continue;
     }
+    if (!byCell.has(h3)) {
+      const [clat, clng] = cellToLatLng(h3);
+      byCell.set(h3, { h3, lat: clat, lng: clng });
+    }
+  }
+  console.log(`Distinct POI cells: ${byCell.size}`);
+
+  // 3) Drop cells whose centre is inside a no-go polygon.
+  const reachable = [];
+  for (const c of byCell.values()) {
     let blocked = false;
     if (noGo.length) {
-      const pt = [lng, lat];
+      const pt = [c.lng, c.lat];
       for (const { poly, box } of noGo) {
-        if (lng < box[0] || lng > box[2] || lat < box[1] || lat > box[3]) continue; // bbox reject
+        if (c.lng < box[0] || c.lng > box[2] || c.lat < box[1] || c.lat > box[3]) continue;
         if (booleanPointInPolygon(pt, poly)) {
           blocked = true;
           break;
         }
       }
     }
-    if (blocked) {
-      excludedIds.push(h3);
-      continue;
-    }
-    const area = nearestArea(lat, lng);
-    rows.push({
-      h3_index: h3,
-      center_lat: lat,
-      center_lng: lng,
-      capture_lat: lat, // reserved for a future footpath-snap UX; not consumed today
-      capture_lng: lng,
+    if (!blocked) reachable.push(c);
+  }
+  console.log(`After no-go exclusion: ${reachable.length}`);
+
+  // 4) Enforce ~${MIN_SPACING_M}m spacing.
+  const kept = spaceOut(reachable);
+  console.log(`After ${MIN_SPACING_M}m spacing: ${kept.length} hexes`);
+
+  // 5) Build rows.
+  const rows = kept.map((c) => {
+    const boundary = cellToBoundary(c.h3, true);
+    const area = nearestArea(c.lat, c.lng);
+    return {
+      h3_index: c.h3,
+      center_lat: c.lat,
+      center_lng: c.lng,
+      capture_lat: c.lat,
+      capture_lng: c.lng,
       pincode: area.pincode,
       neighbourhood: area.name,
       boundary: { type: 'Polygon', coordinates: [boundary] },
       is_active: true,
-    });
+    };
+  });
+
+  // SAFEGUARD: an empty/near-empty result almost always means Overpass was unreachable, NOT that
+  // the city has no public places. Abort BEFORE any upsert/soft-disable so a network failure can
+  // never wipe the existing grid. (Floor scales with scope.)
+  const FLOOR = SCOPE === 'swath' ? 40 : 200;
+  if (kept.length < FLOOR) {
+    console.error(
+      `Only ${kept.length} hexes produced (< ${FLOOR} floor) — Overpass likely failed. ` +
+        'Aborting before any write so the existing grid is untouched. Check the network / cache and re-run.',
+    );
+    process.exit(1);
   }
-  console.log(`Excluded by no-go filter: ${excludedIds.length}`);
-  console.log(`Playable cells to upsert: ${rows.length}`);
 
   const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const keptSet = new Set(kept.map((c) => c.h3));
 
-  // 4) Upsert survivors in chunks (idempotent on the h3_index PK). is_active=TRUE re-activates any
-  //    previously soft-disabled cell that is now playable.
+  // 6) Upsert the kept set (active).
   const CHUNK = 1000;
   let written = 0;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const batch = rows.slice(i, i + CHUNK);
+  for (let k = 0; k < rows.length; k += CHUNK) {
+    const batch = rows.slice(k, k + CHUNK);
     const { error } = await supabase.from('hexes').upsert(batch, { onConflict: 'h3_index' });
     if (error) {
-      console.error(`Upsert failed at chunk ${i / CHUNK}:`, error.message);
+      console.error(`Upsert failed at chunk ${k / CHUNK}:`, error.message);
       process.exit(1);
     }
     written += batch.length;
-    if ((written / CHUNK) % 5 === 0 || written === rows.length) console.log(`  upserted ${written}/${rows.length}`);
   }
+  console.log(`Upserted ${written} hexes (active).`);
 
-  // 5) Reconcile excluded cells by SOFT-DISABLE (never DELETE — FK cascade would wipe ownership +
-  //    captures). Only cells that already exist are affected; new excluded cells are simply not
-  //    inserted. Chunked to stay within request limits.
-  if (excludedIds.length) {
+  // 7) Reconcile: soft-disable any currently-active cell NOT in the new set, EXCEPT owned cells
+  //    (preserve captured territory). Never DELETE.
+  const owned = new Set(await fetchColumn(supabase, 'hex_ownership', false));
+  const active = await fetchColumn(supabase, 'hexes', true);
+  const toDisable = active.filter((h) => !keptSet.has(h) && !owned.has(h));
+  if (toDisable.length) {
     let disabled = 0;
-    for (let i = 0; i < excludedIds.length; i += 500) {
-      const ids = excludedIds.slice(i, i + 500);
+    for (let k = 0; k < toDisable.length; k += 500) {
+      const ids = toDisable.slice(k, k + 500);
       const { error } = await supabase.from('hexes').update({ is_active: false }).in('h3_index', ids);
       if (error) {
-        console.error('Soft-disable of excluded cells failed:', error.message);
+        console.error('Soft-disable failed:', error.message);
         break;
       }
       disabled += ids.length;
     }
-    console.log(`Soft-disabled ${disabled} no-go cells (is_active=FALSE; ownership/history preserved).`);
+    console.log(`Soft-disabled ${disabled} non-anchored cells (kept ${owned.size} owned cells active).`);
   }
 
   const { count: total } = await supabase.from('hexes').select('*', { count: 'exact', head: true });
-  const { count: active } = await supabase.from('hexes').select('*', { count: 'exact', head: true }).eq('is_active', true);
-  console.log(`✓ Done. hexes table: ${total} rows total, ${active} active (playable).`);
-  console.log('⚠ Run `ANALYZE hexes;` (or let autovacuum catch up) so the planner uses hexes_latlng_idx on the grown table.');
+  const { count: activeCount } = await supabase.from('hexes').select('*', { count: 'exact', head: true }).eq('is_active', true);
+  console.log(`✓ Done. hexes: ${total} total, ${activeCount} active (playable).`);
+  console.log('⚠ Run `ANALYZE hexes;` (or let autovacuum catch up) so the planner uses hexes_latlng_idx.');
 }
 
 main().catch((e) => {
