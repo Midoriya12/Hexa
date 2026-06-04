@@ -6,7 +6,7 @@
 // the rest of the screen (sheet, controls) keeps working — no white-screen.
 //
 // Hex rendering (INTVL territory model): OWNED hexes show as coloured territory at all zooms;
-// the UNOWNED grid shows outline-only from zoom 13 (aligned with the viewport-fetch gate) so the
+// the UNOWNED grid shows outline-only from zoom 12 (aligned with the viewport-fetch gate) so the
 // city/globe view stays clean and a single fetch stays under the PostgREST row cap.
 import {
   Component,
@@ -305,7 +305,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
             <LineLayer
               id="hexLineUnowned"
               filter={['==', ['get', 'owner'], 'none']}
-              minZoomLevel={13}
+              minZoomLevel={12}
               style={{
                 lineColor: 'rgba(255,140,0,0.9)',
                 lineWidth: ['interpolate', ['linear'], ['zoom'], 12, 1.2, 17, 2.8],

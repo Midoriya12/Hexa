@@ -23,8 +23,10 @@ import {
 type Owner = HexFeatureProps['owner'];
 
 // Tuning — all sized so ONE fetch stays well under PostgREST max_rows (1000). res-10 cell ≈130m.
-const MIN_FETCH_ZOOM = 13; // below this the viewport is too wide to usefully fetch the grid
-const MAX_SPAN_DEG = 0.025; // clamp the fetched box to ~2.8 km/side (~460 cells) regardless of zoom
+const MIN_FETCH_ZOOM = 12; // hexes start showing ~1 zoom level sooner (sparse grid makes it cheap)
+const MAX_SPAN_DEG = 0.06; // clamp the fetched box to ~6.7 km/side; with the SPARSE grid (~3.5 hex/km²)
+//                            that's only a few hundred hexes per fetch — well under max_rows — and a
+//                            bigger loaded area means panning stays inside it (feels instant, fewer refetches)
 const PAD = 0.15; // pad each side for pan headroom (total stays under the row cap)
 const CAP = 2500; // max windowed features kept in memory (ownedAlways is separate + never evicted)
 const PROX_RADIUS_DEG = 0.006; // ~660 m capture-readiness window for the walking tracker (> HEX_REACH_M=80)

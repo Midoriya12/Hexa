@@ -1,7 +1,8 @@
 // Settings — INTVL's "Me menu" screen, DARK to match Feed/Me: profile header, saffron
 // "Refer a friend" gradient card, grouped rows, sign out + delete. Dropped "Plans &
 // purchases" (no in-app purchases — PROGA). Sign out is functional.
-import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -19,7 +20,7 @@ import {
   IconWatch,
 } from '@/components/ui/Icon';
 
-import { Button } from '@/components/ui';
+import { ActionSheet, Button, type SheetAction } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { updateOwnUser } from '@/lib/supabase/auth';
 import { useUserStore } from '@/stores/userStore';
@@ -47,6 +48,18 @@ export default function SettingsScreen() {
   const setUser = useUserStore((s) => s.setUser);
   const ic = (Icon: typeof IconPencil) => <Icon size={22} color={colors.ink[600]} />;
 
+  // Themed confirm sheet (replaces the plain-white OS Alert).
+  const [sheet, setSheet] = useState<{ title?: string; message?: string; actions: SheetAction[] } | null>(null);
+  const confirm = (title: string, message: string, label: string, onConfirm: () => void) =>
+    setSheet({
+      title,
+      message,
+      actions: [
+        { label, destructive: true, onPress: onConfirm },
+        { label: 'Cancel', cancel: true },
+      ],
+    });
+
   const ghost = !!user?.ghost_mode;
   const toggleGhost = async (v: boolean) => {
     if (!user?.id) return;
@@ -59,15 +72,9 @@ export default function SettingsScreen() {
   };
 
   const confirmSignOut = () =>
-    Alert.alert('Sign out?', 'You can sign back in with your phone number.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
-    ]);
+    confirm('Sign out?', 'You can sign back in with your phone number.', 'Sign out', () => void signOut());
   const confirmDelete = () =>
-    Alert.alert('Delete account?', 'This permanently removes your account and captures. Cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => undefined },
-    ]);
+    confirm('Delete account?', 'This permanently removes your account and captures. Cannot be undone.', 'Delete', () => undefined);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
@@ -127,6 +134,14 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <ActionSheet
+        visible={!!sheet}
+        title={sheet?.title}
+        message={sheet?.message}
+        actions={sheet?.actions ?? []}
+        onClose={() => setSheet(null)}
+      />
     </SafeAreaView>
   );
 }
