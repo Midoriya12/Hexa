@@ -28,6 +28,7 @@ import { updateOwnUser } from '@/lib/supabase/auth';
 import { fetchMyWalks } from '@/lib/supabase/walks';
 import { levelName, xpProgress } from '@/lib/points';
 import { useUserStore } from '@/stores/userStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { colors } from '@/theme';
 import type { WalkRow } from '@/types/database';
 
@@ -92,6 +93,9 @@ export default function MeScreen() {
   const router = useRouter();
   const { user } = useCurrentUser();
   const setUser = useUserStore((s) => s.setUser);
+  const notifCount = useNotificationStore((s) => s.total);
+  const refreshNotif = useNotificationStore((s) => s.refresh);
+  const canManageJoins = user?.clan_role === 'president' || user?.clan_role === 'vp';
   const level = user?.level ?? 1;
 
   const points = user?.current_round_points ?? 0;
@@ -118,10 +122,11 @@ export default function MeScreen() {
       void supabase.rpc('my_rent_rate').then(({ data, error }) => {
         if (alive && !error) setRentPerHr(data ?? 0);
       });
+      void refreshNotif(canManageJoins);
       return () => {
         alive = false;
       };
-    }, []),
+    }, [canManageJoins, refreshNotif]),
   );
 
   const pickColour = async (hex: string) => {
@@ -138,7 +143,16 @@ export default function MeScreen() {
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
       <View className="h-12 flex-row items-center justify-between px-4">
-        <IconBell size={24} color={colors.ink[900]} onPress={() => router.push('/notifications' as Href)} />
+        <View>
+          <IconBell size={24} color={colors.ink[900]} onPress={() => router.push('/notifications' as Href)} />
+          {notifCount > 0 ? (
+            <View className="absolute -right-2 -top-1.5 h-4 min-w-[16px] items-center justify-center rounded-full bg-saffron-600 px-1">
+              <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-sm font-bold text-white">
+                {notifCount > 9 ? '9+' : notifCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <Text className="text-heading-md text-ink-900">Me</Text>
         <IconSettings size={24} color={colors.ink[900]} onPress={() => router.push('/settings' as Href)} />
       </View>
