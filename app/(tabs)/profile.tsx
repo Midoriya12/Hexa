@@ -100,6 +100,13 @@ export default function MeScreen() {
   const xp = xpProgress(lp, level);
   const myColour = user?.hex_colour || colors.player.saffron;
 
+  // Streak display, corrected for staleness (the stored streak only resets on the NEXT capture):
+  // a streak is "alive" only if the last capture was today or yesterday (IST), else show 0.
+  const istDay = (ms: number) => Math.floor((ms + 5.5 * 3600 * 1000) / 86_400_000);
+  const lastCapMs = user?.last_capture_at ? new Date(user.last_capture_at).getTime() : null;
+  const streakAlive = lastCapMs !== null && istDay(Date.now()) - istDay(lastCapMs) <= 1;
+  const streak = streakAlive ? user?.current_streak ?? 0 : 0;
+
   const [walks, setWalks] = useState<WalkRow[]>([]);
   const [rentPerHr, setRentPerHr] = useState(0); // authoritative hourly rent (my_rent_rate RPC)
   useFocusEffect(
@@ -131,7 +138,7 @@ export default function MeScreen() {
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
       <View className="h-12 flex-row items-center justify-between px-4">
-        <IconBell size={24} color={colors.ink[900]} />
+        <IconBell size={24} color={colors.ink[900]} onPress={() => router.push('/notifications' as Href)} />
         <Text className="text-heading-md text-ink-900">Me</Text>
         <IconSettings size={24} color={colors.ink[900]} onPress={() => router.push('/settings' as Href)} />
       </View>
@@ -167,6 +174,15 @@ export default function MeScreen() {
           <View className="h-2 overflow-hidden rounded-full bg-ink-300">
             <View className="h-full rounded-full bg-saffron-600" style={{ width: `${Math.round(xp.pct * 100)}%` }} />
           </View>
+        </View>
+
+        {/* Daily streak (display-corrected) */}
+        <View className="mt-3 flex-row items-center">
+          {streak > 0 ? (
+            <Text className="text-body-md font-semibold text-ink-900">🔥 {streak}-day streak</Text>
+          ) : (
+            <Text className="text-body-sm text-ink-700">🔥 Capture a hex today to start a streak</Text>
+          )}
         </View>
 
         {/* Hex colour picker */}

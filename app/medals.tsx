@@ -1,32 +1,15 @@
-// Medals Gallery — design spec §6.14 (INTVL has no medals screen; Hexa-original in
-// the INTVL visual language). Grid of earned/locked medals. DESIGN PREVIEW: mock.
+// Medals Gallery — real medals (migration 013): earned ones light up in their tier colour with
+// the date; locked ones show the lock + how to earn them. Reached from Me → Medals.
+import { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { IconChevronLeft, IconLock, IconMedal } from '@/components/ui/Icon';
-import { useRouter } from 'expo-router';
 
-import { Badge } from '@/components/ui';
+import { fetchMedals, type MedalTier, type UserMedal } from '@/lib/supabase/medals';
 import { colors } from '@/theme';
 
-interface Medal {
-  name: string;
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
-  earned: boolean;
-}
-
-const MEDALS: Medal[] = [
-  { name: 'First Capture', tier: 'bronze', earned: true },
-  { name: 'Week One', tier: 'silver', earned: true },
-  { name: 'Night Owl', tier: 'silver', earned: false },
-  { name: 'Crown Hunter', tier: 'gold', earned: false },
-  { name: 'Month One', tier: 'gold', earned: false },
-  { name: 'Streak x30', tier: 'platinum', earned: false },
-  { name: 'Lake Walker', tier: 'silver', earned: false },
-  { name: 'Park Ranger', tier: 'bronze', earned: false },
-  { name: 'Pincode King', tier: 'gold', earned: false },
-];
-
-const TIER_COLOUR: Record<Medal['tier'], string> = {
+const TIER_COLOUR: Record<MedalTier, string> = {
   bronze: '#CD7F32',
   silver: '#C0C0C0',
   gold: colors.saffron[500],
@@ -35,7 +18,21 @@ const TIER_COLOUR: Record<Medal['tier'], string> = {
 
 export default function MedalsScreen() {
   const router = useRouter();
-  const earnedCount = MEDALS.filter((m) => m.earned).length;
+  const [medals, setMedals] = useState<UserMedal[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      fetchMedals()
+        .then((m) => alive && setMedals(m))
+        .catch(() => undefined);
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
+
+  const earned = medals.filter((m) => m.earned).length;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
@@ -46,16 +43,12 @@ export default function MedalsScreen() {
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}>
         <Text className="mb-4 text-body-md text-ink-700">
-          {earnedCount} of {MEDALS.length} earned
+          {earned} of {medals.length} earned
         </Text>
 
         <View className="flex-row flex-wrap" style={{ gap: 12 }}>
-          {MEDALS.map((m) => (
-            <View
-              key={m.name}
-              className="items-center rounded-md bg-ink-200 p-3"
-              style={{ width: '31%' }}
-            >
+          {medals.map((m) => (
+            <View key={m.id} className="items-center rounded-md bg-ink-200 p-3" style={{ width: '31%' }}>
               <View
                 className="h-16 w-16 items-center justify-center rounded-full"
                 style={{ backgroundColor: m.earned ? `${TIER_COLOUR[m.tier]}22` : colors.ink[300] }}
@@ -63,21 +56,20 @@ export default function MedalsScreen() {
                 {m.earned ? (
                   <IconMedal size={32} color={TIER_COLOUR[m.tier]} strokeWidth={1.75} />
                 ) : (
-                  <IconLock size={28} color={colors.ink[500]} strokeWidth={1.75} />
+                  <IconLock size={26} color={colors.ink[500]} strokeWidth={1.75} />
                 )}
               </View>
               <Text
                 numberOfLines={2}
-                className={`mt-2 text-center text-label-sm ${m.earned ? 'text-ink-900' : 'text-ink-600'}`}
+                className={`mt-2 text-center text-label-sm font-semibold ${m.earned ? 'text-ink-900' : 'text-ink-600'}`}
               >
                 {m.name}
               </Text>
+              <Text numberOfLines={2} className="mt-0.5 text-center text-label-sm text-ink-600" style={{ minHeight: 28 }}>
+                {m.earned ? `+${m.lpReward} LP` : m.description}
+              </Text>
             </View>
           ))}
-        </View>
-
-        <View className="mt-6 self-center">
-          <Badge tone="neutral" label="Mock medals — live in Phase 6" />
         </View>
       </ScrollView>
     </SafeAreaView>

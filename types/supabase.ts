@@ -457,6 +457,39 @@ export type Database = {
         }
         Relationships: []
       }
+      medals: {
+        Row: {
+          criteria_threshold: number
+          criteria_type: string
+          description: string
+          id: string
+          lp_reward: number
+          name: string
+          sort: number
+          tier: string
+        }
+        Insert: {
+          criteria_threshold?: number
+          criteria_type: string
+          description: string
+          id: string
+          lp_reward?: number
+          name: string
+          sort?: number
+          tier: string
+        }
+        Update: {
+          criteria_threshold?: number
+          criteria_type?: string
+          description?: string
+          id?: string
+          lp_reward?: number
+          name?: string
+          sort?: number
+          tier?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
@@ -558,6 +591,46 @@ export type Database = {
           },
           {
             foreignKeyName: "round_results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_medals: {
+        Row: {
+          earned_at: string
+          medal_id: string
+          user_id: string
+        }
+        Insert: {
+          earned_at?: string
+          medal_id: string
+          user_id: string
+        }
+        Update: {
+          earned_at?: string
+          medal_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_medals_medal_id_fkey"
+            columns: ["medal_id"]
+            isOneToOne: false
+            referencedRelation: "medals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_medals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_medals_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -757,12 +830,17 @@ export type Database = {
       }
     }
     Functions: {
+      award_medal: {
+        Args: { p_cond: boolean; p_key: string; p_uid: string }
+        Returns: undefined
+      }
       cancel_join_request: { Args: { p_request_id: number }; Returns: Json }
       capture_hex: {
         Args: { p_h3: string; p_lat: number; p_lng: number }
         Returns: Json
       }
       check_level_up: { Args: { p_uid: string }; Returns: undefined }
+      check_medals: { Args: { p_uid: string }; Returns: undefined }
       clan_display_name: { Args: { p_id: string }; Returns: string }
       clan_log: {
         Args: { p_actor: string; p_body: string; p_clan_id: string }
@@ -888,6 +966,7 @@ export type Database = {
         }
         Returns: Json
       }
+      update_streak_if_needed: { Args: { p_uid: string }; Returns: undefined }
       user_card: {
         Args: { p_id: string }
         Returns: {
