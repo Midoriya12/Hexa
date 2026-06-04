@@ -12,8 +12,17 @@ import { IconChevronLeft } from '@/components/ui/Icon';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { listIncomingRequests, respondToRequest, type FriendRequest } from '@/lib/supabase/friends';
 import { listJoinRequests, respondJoinRequest, type JoinRequest } from '@/lib/supabase/clans';
+import { listNotifications, markNotificationsRead, type AppNotification } from '@/lib/supabase/notifications';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { colors } from '@/theme';
+
+function ago(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -23,9 +32,11 @@ export default function NotificationsScreen() {
 
   const [friendReqs, setFriendReqs] = useState<FriendRequest[]>([]);
   const [joinReqs, setJoinReqs] = useState<JoinRequest[]>([]);
+  const [events, setEvents] = useState<AppNotification[]>([]);
 
   const load = useCallback(() => {
     listIncomingRequests().then(setFriendReqs).catch(() => undefined);
+    listNotifications().then(setEvents).catch(() => undefined);
     if (canManageJoins) listJoinRequests().then(setJoinReqs).catch(() => undefined);
     else setJoinReqs([]);
   }, [canManageJoins]);
@@ -33,7 +44,9 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      // Opening the inbox marks the events read → clears the bell badge for them.
+      void markNotificationsRead().then(() => refreshBadge(canManageJoins));
+    }, [load, refreshBadge, canManageJoins]),
   );
 
   const onFriend = async (friendshipId: number, accept: boolean) => {
@@ -53,7 +66,7 @@ export default function NotificationsScreen() {
     }
   };
 
-  const empty = friendReqs.length === 0 && joinReqs.length === 0;
+  const empty = friendReqs.length === 0 && joinReqs.length === 0 && events.length === 0;
 
   return (
     <SafeAreaView edges={['top']} className="flex-1 bg-ink-50">
@@ -115,6 +128,33 @@ export default function NotificationsScreen() {
                 </View>
               </View>
             ))}
+          </View>
+        ) : null}
+
+        {/* Activity — steals, level-ups (the notifications table) */}
+        {events.length > 0 ? (
+          <View className="mb-6">
+            <Text className="mb-2 text-label-sm uppercase tracking-wide text-ink-600">Activity</Text>
+            {events.map((n) => {
+              const toThief = n.type === 'steal' && typeof n.data.by === 'string' ? (n.data.by as string) : null;
+              const inner = (
+                <View className="flex-row items-center">
+                  <View className="h-10 w-10 items-center justify-center rounded-full bg-saffron-600/15">
+                    <Text className="text-body-lg">{n.type === 'steal' ? '🔥' : n.type === 'level_up' ? '⭐' : '🔔'}</Text>
+                  </View>
+                  <View className="ml-3 flex-1">
+                    <Text className="text-heading-sm text-ink-900">{n.title}</Text>
+                    {n.body ? <Text className="text-body-sm text-ink-700">{n.body}</Text> : null}
+                  </View>
+                  <Text className="text-label-sm text-ink-600">{ago(n.createdAt)}</Text>
+                </View>
+              );
+              return (
+                <View key={`n${n.id}`} className={`mb-2 rounded-md p-3 ${n.readAt ? 'bg-ink-100' : 'bg-ink-200'}`}>
+                  {toThief ? <Pressable onPress={() => router.push(`/u/${toThief}` as Href)}>{inner}</Pressable> : inner}
+                </View>
+              );
+            })}
           </View>
         ) : null}
       </ScrollView>
