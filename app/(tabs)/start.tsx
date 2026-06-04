@@ -195,6 +195,20 @@ export default function StartScreen() {
         </View>
       ) : null}
 
+      {/* ── Mock-GPS lockout banner (persistent while detected — not the auto-dismissing toast) ── */}
+      {walking && tracker.status === 'mocked' ? (
+        <View style={{ position: 'absolute', top: insets.top + 6, left: 0, right: 0 }} className="px-4">
+          <View
+            className="rounded-xl px-4 py-3"
+            style={{ backgroundColor: 'rgba(127,29,29,0.95)', borderWidth: 1, borderColor: '#EF4444' }}
+          >
+            <Text style={{ color: '#FECACA' }} className="text-center text-body-sm font-semibold">
+              ⚠️ Fake GPS detected — turn off mock location to capture.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       {/* ── Floating controls (right) ── */}
       <View style={{ position: 'absolute', right: 16, top: insets.top + 56 }}>
         <ControlButton onPress={routeToNearest}>

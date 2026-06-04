@@ -1,5 +1,5 @@
 import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -97,7 +97,24 @@ function useAuthGuard(session: Session | null, ready: boolean) {
     if (!ready) return;
     const inAuthGroup = segments[0] === '(auth)';
     const onEntryScreen = segments[1] === 'phone' || segments[1] === 'otp';
+    const onBanned = (segments[0] as string) === 'banned';
     const complete = isProfileComplete(user);
+    // Phase 8: a banned account is locked out everywhere. Checked FIRST. An expired temp-ban
+    // (banned_until in the past) auto-clears here on the next fetchOwnUser, leaving the ban screen.
+    const banned =
+      !!user &&
+      (user.banned_permanently === true ||
+        (user.banned_until != null && new Date(user.banned_until).getTime() > Date.now()));
+
+    if (session && banned) {
+      if (!onBanned) router.replace('/banned' as Href);
+      return;
+    }
+    if (onBanned) {
+      // Not (or no longer) banned but sitting on the ban screen → send them where they belong.
+      router.replace(session && complete ? '/(tabs)' : '/(auth)/phone');
+      return;
+    }
 
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/phone');
@@ -132,6 +149,7 @@ function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0A0A0A' } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="banned" options={{ gestureEnabled: false }} />
       </Stack>
     </GestureHandlerRootView>
   );

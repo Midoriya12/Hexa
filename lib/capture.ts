@@ -26,8 +26,13 @@ export type CaptureError =
   | 'block_cooldown' // hex captured by anyone in the last 15 min — locked
   | 'fresh_paint' // freshly-taken hex, steal-protected for 30 min
   | 'protected' // would drop the victim below their safe held-hex floor
+  | 'too_fast' // Phase 8: impossible speed between captures (>350 km/h) — rejected
+  | 'banned' // Phase 8: temporarily suspended (banned_until in the future)
+  | 'banned_permanently' // Phase 8: permanent ban
   | 'unknown';
 
+// Matched by substring against the RAISEd message, so ORDER matters: 'banned_permanently' MUST come
+// before 'banned' (a perm-ban message contains the substring "banned" too).
 const KNOWN_ERRORS: CaptureError[] = [
   'not_authenticated',
   'hex_not_found',
@@ -37,6 +42,9 @@ const KNOWN_ERRORS: CaptureError[] = [
   'block_cooldown',
   'fresh_paint',
   'protected',
+  'too_fast',
+  'banned_permanently',
+  'banned',
   'cooldown',
 ];
 

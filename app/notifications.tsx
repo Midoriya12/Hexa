@@ -140,7 +140,19 @@ export default function NotificationsScreen() {
               const inner = (
                 <View className="flex-row items-center">
                   <View className="h-10 w-10 items-center justify-center rounded-full bg-saffron-600/15">
-                    <Text className="text-body-lg">{n.type === 'steal' ? '🔥' : n.type === 'level_up' ? '⭐' : '🔔'}</Text>
+                    <Text className="text-body-lg">
+                      {n.type === 'steal'
+                        ? '🔥'
+                        : n.type === 'level_up'
+                          ? '⭐'
+                          : n.type === 'rent'
+                            ? '💰'
+                            : n.type === 'warning'
+                              ? '⚠️'
+                              : n.type === 'ban'
+                                ? '🚫'
+                                : '🔔'}
+                    </Text>
                   </View>
                   <View className="ml-3 flex-1">
                     <Text className="text-heading-sm text-ink-900">{n.title}</Text>

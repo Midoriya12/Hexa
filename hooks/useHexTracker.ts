@@ -12,6 +12,8 @@ import * as Location from 'expo-location';
 
 import { captureHex } from '@/lib/capture';
 import { fetchOwnUser } from '@/lib/supabase/auth';
+import { isMockFix } from '@/lib/antiCheat/mockDetection';
+import { MOCK_MIN_MS, MOCK_STREAK } from '@/lib/antiCheat/config';
 import { useHexStore } from '@/stores/hexStore';
 import { useUserStore } from '@/stores/userStore';
 import type { HexFeatureProps } from '@/lib/supabase/hexes';
@@ -26,6 +28,8 @@ export type TrackStatus =
   | 'capturing'
   | 'captured'
   | 'owned'
+  | 'mocked' // Phase 8: fake-GPS detected — capture locked until it's turned off
+  | 'banned' // Phase 8: account suspended (root guard redirects to /banned)
   | 'error';
 
 export interface TrackState {
@@ -119,6 +123,10 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
   const countRef = useRef(0);
   const distanceRef = useRef(0);
   const captureNonceRef = useRef(0);
+  // Phase 8 mock-location streak: count of consecutive mocked fixes + when the streak started.
+  // We only lock capture after MOCK_STREAK fixes over MOCK_MIN_MS (debounce a transient OEM flag).
+  const mockStreakRef = useRef(0);
+  const mockSinceRef = useRef(0);
   // dwellMs changes when the user levels up. Read it through a ref so a level-up mid-walk (the
   // capture path calls setUser, which can change level → dwellMs) does NOT re-run the GPS-watcher
   // effect and tear down the live location subscription. The ref is kept fresh by the effect below.
@@ -130,6 +138,7 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
     distanceRef.current = 0;
     lastFixRef.current = null;
     smoothRef.current = null;
+    mockStreakRef.current = 0;
     setState((s) => ({ ...s, capturedCount: 0, distanceM: 0, lastCapture: null, position: null }));
   }, [sessionKey]);
 
@@ -144,6 +153,7 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
       dwellStartRef.current = null;
       coordsRef.current = null;
       lastFixRef.current = null;
+      mockStreakRef.current = 0;
       useHexStore.getState().setActiveHex(null);
       setState((s) => ({ ...s, status: 'idle', currentHex: null, dwellProgress: 0, message: '' }));
       return;
@@ -173,9 +183,32 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
           if (cancelled) return;
           const { latitude, longitude, accuracy } = loc.coords;
           if (accuracy == null || accuracy > 25) {
+            mockStreakRef.current = 0; // a noisy low-accuracy stream must not keep the mock streak armed
             setState((s) => ({ ...s, status: 'low_accuracy', accuracy, message: 'Improving GPS signal…' }));
             return;
           }
+
+          // Mock-location guard (after the accuracy gate so only capture-eligible fixes feed it).
+          // A mocked fix is NEVER processed for capture; after MOCK_STREAK of them over MOCK_MIN_MS we
+          // lock the UI. The first clean fix resets the streak and play resumes automatically.
+          if (isMockFix(loc)) {
+            if (mockStreakRef.current === 0) mockSinceRef.current = Date.now();
+            mockStreakRef.current += 1;
+            if (mockStreakRef.current >= MOCK_STREAK && Date.now() - mockSinceRef.current >= MOCK_MIN_MS) {
+              hexRef.current = null;
+              dwellStartRef.current = null;
+              useHexStore.getState().setActiveHex(null);
+              setState((s) => ({
+                ...s,
+                status: 'mocked',
+                currentHex: null,
+                dwellProgress: 0,
+                message: 'Fake GPS detected — turn off mock location to capture.',
+              }));
+            }
+            return;
+          }
+          mockStreakRef.current = 0; // clean fix → auto-recover
 
           // Smooth (EMA); damp big spikes hard so a noisy fix barely nudges the dot.
           const prev = smoothRef.current;
@@ -290,14 +323,30 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
               /* stats refresh is best-effort */
             }
           }
+        } else if (res.error === 'banned' || res.error === 'banned_permanently') {
+          // Account suspended: terminal — don't re-arm, surface it, and refresh the user row so the
+          // root auth guard redirects to /banned.
+          dwellStartRef.current = null;
+          hexRef.current = null;
+          useHexStore.getState().setActiveHex(null);
+          setState((s) => ({ ...s, status: 'banned', dwellProgress: 0, message: 'Your account is suspended.' }));
+          if (myId) {
+            try {
+              const row = await fetchOwnUser(myId);
+              if (!cancelled) setUser(row);
+            } catch {
+              /* the guard also re-checks on next focus */
+            }
+          }
         } else {
-          // Locked/protected hexes: don't re-arm the dwell — hysteresis parks you here without
-          // hammering the RPC every cycle until you walk away. Transient errors retry next dwell.
+          // Locked/protected hexes (+ too_fast): don't re-arm the dwell — hysteresis parks you here
+          // without hammering the RPC every cycle until you walk away. Transient errors retry next dwell.
           const noRetry =
             res.error === 'cooldown' ||
             res.error === 'block_cooldown' ||
             res.error === 'fresh_paint' ||
-            res.error === 'protected';
+            res.error === 'protected' ||
+            res.error === 'too_fast';
           dwellStartRef.current = noRetry ? null : Date.now();
           const message =
             res.error === 'outside_hex'
@@ -308,9 +357,11 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
                   ? "Freshly painted — can't steal it yet."
                   : res.error === 'protected'
                     ? 'Protected — part of their home turf.'
-                    : res.error === 'cooldown'
-                      ? 'Just captured — head to another hex.'
-                      : 'Capture failed — trying again.';
+                    : res.error === 'too_fast'
+                      ? 'Moving too fast to capture — slow down and try on foot.'
+                      : res.error === 'cooldown'
+                        ? 'Just captured — head to another hex.'
+                        : 'Capture failed — trying again.';
           setState((s) => ({ ...s, status: 'error', dwellProgress: 0, message }));
         }
         capturingRef.current = false;
