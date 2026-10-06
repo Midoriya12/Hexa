@@ -260,9 +260,9 @@ export default function ClansScreen() {
                 </View>
                 <View className="ml-3 flex-1">
                   <Text className="text-heading-sm text-ink-900">{c.name}</Text>
-                  <Text className="text-label-sm text-ink-600">{c.memberCount} members · {c.totalHexes.toLocaleString('en-IN')} hexes</Text>
+                  <Text className="text-label-sm text-ink-600">{c.memberCount} members · {c.totalHexes.toLocaleString('en-US')} hexes</Text>
                 </View>
-                <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">{c.totalPoints.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">{c.totalPoints.toLocaleString('en-US')}</Text>
               </View>
             ))
           )}
@@ -285,8 +285,8 @@ export default function ClansScreen() {
             <View className="mt-3 flex-row gap-3">
               {[
                 { v: `${myClan.memberCount}/${CAP}`, l: 'Members' },
-                { v: (stats?.totalPoints ?? 0).toLocaleString('en-IN'), l: 'Total points' },
-                { v: (stats?.totalHexes ?? 0).toLocaleString('en-IN'), l: 'Hexes held' },
+                { v: (stats?.totalPoints ?? 0).toLocaleString('en-US'), l: 'Total points' },
+                { v: (stats?.totalHexes ?? 0).toLocaleString('en-US'), l: 'Hexes held' },
               ].map((s) => (
                 <View key={s.l} className="flex-1 items-center rounded-md border border-ink-400 bg-ink-100 py-2">
                   <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm font-extrabold text-saffron-600">{s.v}</Text>
@@ -321,7 +321,7 @@ export default function ClansScreen() {
                     <Text className="text-heading-sm text-ink-900">{m.name}</Text>
                     <Text className="text-label-sm text-ink-600">{ROLE_LABEL[m.role]} · L{m.level}</Text>
                   </View>
-                  <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-IN')}</Text>
+                  <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-US')}</Text>
                 </Pressable>
               ))
             ) : tab === 'Requests' ? (
@@ -334,7 +334,7 @@ export default function ClansScreen() {
                       <Avatarish name={r.user.name} colour={r.user.colour} />
                       <View className="ml-3 flex-1">
                         <Text className="text-heading-sm text-ink-900">{r.user.name}</Text>
-                        <Text className="text-label-sm text-ink-600">L{r.user.level} · {r.user.points.toLocaleString('en-IN')} pts</Text>
+                        <Text className="text-label-sm text-ink-600">L{r.user.level} · {r.user.points.toLocaleString('en-US')} pts</Text>
                       </View>
                       <View className="flex-row gap-2">
                         <Button label="Accept" size="sm" onPress={() => act(() => respondJoinRequest(r.id, true), 'Accept')} />
@@ -426,8 +426,8 @@ export default function ClansScreen() {
           <View className="mt-3 flex-row gap-3">
             {[
               { v: `${viewClan.memberCount}/${CAP}`, l: 'Members' },
-              { v: (viewStats?.totalPoints ?? 0).toLocaleString('en-IN'), l: 'Total points' },
-              { v: (viewStats?.totalHexes ?? 0).toLocaleString('en-IN'), l: 'Total hexes' },
+              { v: (viewStats?.totalPoints ?? 0).toLocaleString('en-US'), l: 'Total points' },
+              { v: (viewStats?.totalHexes ?? 0).toLocaleString('en-US'), l: 'Total hexes' },
             ].map((s) => (
               <View key={s.l} className="flex-1 items-center rounded-md border border-ink-400 bg-ink-100 py-2">
                 <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm font-extrabold text-saffron-600">{s.v}</Text>
@@ -438,7 +438,7 @@ export default function ClansScreen() {
 
           {viewClan.minPoints > 0 || viewClan.minHexes > 0 ? (
             <Text className="mt-3 text-body-sm text-ink-700">
-              Requirements: {viewClan.minPoints > 0 ? `${viewClan.minPoints.toLocaleString('en-IN')}+ pts` : ''}
+              Requirements: {viewClan.minPoints > 0 ? `${viewClan.minPoints.toLocaleString('en-US')}+ pts` : ''}
               {viewClan.minPoints > 0 && viewClan.minHexes > 0 ? ' · ' : ''}
               {viewClan.minHexes > 0 ? `${viewClan.minHexes}+ hexes` : ''}
             </Text>
@@ -465,7 +465,7 @@ export default function ClansScreen() {
                   <Text className="text-heading-sm text-ink-900">{m.name}</Text>
                   <Text className="text-label-sm text-ink-600">{ROLE_LABEL[m.role]} · L{m.level}</Text>
                 </View>
-                <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-IN')}</Text>
+                <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-US')}</Text>
               </Pressable>
             ))
           )}
@@ -474,7 +474,7 @@ export default function ClansScreen() {
         // ════════════ NOT IN A CLAN — create + browse ════════════
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
           <Text className="mb-1 text-heading-md text-ink-900">Found a clan</Text>
-          <Text className="mb-3 text-body-sm text-ink-700">Costs {CLAN_COST.toLocaleString('en-IN')} points — you have {myPoints.toLocaleString('en-IN')}.</Text>
+          <Text className="mb-3 text-body-sm text-ink-700">Costs {CLAN_COST.toLocaleString('en-US')} points — you have {myPoints.toLocaleString('en-US')}.</Text>
           <Field value={name} onChange={setName} placeholder="Clan name" />
           <Field value={desc} onChange={setDesc} placeholder="Description (optional)" />
           <View className="flex-row gap-3">
@@ -482,7 +482,7 @@ export default function ClansScreen() {
             <View className="flex-1"><Field value={minH} onChange={setMinH} placeholder="Min hexes" numeric /></View>
           </View>
           <Button
-            label={`Create clan (${CLAN_COST.toLocaleString('en-IN')} pts)`}
+            label={`Create clan (${CLAN_COST.toLocaleString('en-US')} pts)`}
             disabled={name.trim().length === 0 || myPoints < CLAN_COST}
             onPress={() =>
               act(() => createClan(name.trim(), user?.hex_colour || colors.player.saffron, desc.trim(), Number(minP) || 0, Number(minH) || 0), 'Create clan')
@@ -505,7 +505,7 @@ export default function ClansScreen() {
                     <Text className="text-heading-sm text-ink-900">{c.name}</Text>
                     <Text className="text-label-sm text-ink-600">
                       {c.memberCount}/{CAP}
-                      {c.minPoints > 0 ? ` · ${c.minPoints.toLocaleString('en-IN')}+ pts` : ''}
+                      {c.minPoints > 0 ? ` · ${c.minPoints.toLocaleString('en-US')}+ pts` : ''}
                       {c.minHexes > 0 ? ` · ${c.minHexes}+ hexes` : ''}
                     </Text>
                   </View>
@@ -533,7 +533,7 @@ export default function ClansScreen() {
               <TextInput
                 value={joinMsg}
                 onChangeText={setJoinMsg}
-                placeholder="e.g. I walk HSR daily — would love to join!"
+                placeholder="e.g. I walk every morning — would love to join!"
                 placeholderTextColor={colors.ink[600]}
                 multiline
                 maxLength={280}

@@ -125,8 +125,8 @@ export default function ClanProfileScreen() {
             <View className="mt-3 flex-row gap-3">
               {[
                 { v: `${clan.memberCount}/${CAP}`, l: 'Members' },
-                { v: (stats?.totalPoints ?? 0).toLocaleString('en-IN'), l: 'Total points' },
-                { v: (stats?.totalHexes ?? 0).toLocaleString('en-IN'), l: 'Hexes held' },
+                { v: (stats?.totalPoints ?? 0).toLocaleString('en-US'), l: 'Total points' },
+                { v: (stats?.totalHexes ?? 0).toLocaleString('en-US'), l: 'Hexes held' },
               ].map((s) => (
                 <View key={s.l} className="flex-1 items-center rounded-md border border-ink-400 bg-ink-100 py-2">
                   <Text style={{ fontVariant: ['tabular-nums'] }} className="text-heading-sm font-extrabold text-saffron-600">{s.v}</Text>
@@ -137,7 +137,7 @@ export default function ClanProfileScreen() {
 
             {clan.minPoints > 0 || clan.minHexes > 0 ? (
               <Text className="mt-3 text-body-sm text-ink-700">
-                Requirements: {clan.minPoints > 0 ? `${clan.minPoints.toLocaleString('en-IN')}+ pts` : ''}
+                Requirements: {clan.minPoints > 0 ? `${clan.minPoints.toLocaleString('en-US')}+ pts` : ''}
                 {clan.minPoints > 0 && clan.minHexes > 0 ? ' · ' : ''}
                 {clan.minHexes > 0 ? `${clan.minHexes}+ hexes` : ''}
               </Text>
@@ -166,7 +166,7 @@ export default function ClanProfileScreen() {
                     <Text className="text-heading-sm text-ink-900">{m.name}</Text>
                     <Text className="text-label-sm text-ink-600">{ROLE_LABEL[m.role]} · L{m.level}</Text>
                   </View>
-                  <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-IN')}</Text>
+                  <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md text-ink-800">{m.points.toLocaleString('en-US')}</Text>
                 </Pressable>
               ))
             )}
@@ -184,7 +184,7 @@ export default function ClanProfileScreen() {
               <TextInput
                 value={joinMsg}
                 onChangeText={setJoinMsg}
-                placeholder="e.g. I walk HSR daily — would love to join!"
+                placeholder="e.g. I walk every morning — would love to join!"
                 placeholderTextColor={colors.ink[600]}
                 multiline
                 maxLength={280}

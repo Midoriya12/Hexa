@@ -19,6 +19,7 @@ import {
   IconUsers,
   IconWalk,
 } from '@/components/ui/Icon';
+import { regionDayIndex } from '@/lib/config/region';
 
 import { Avatar, Badge } from '@/components/ui';
 import { HexIcon } from '@/components/shared/HexIcon';
@@ -38,7 +39,7 @@ const mmss = (sec: number) =>
 
 function WalkItem({ w }: { w: WalkRow }) {
   const date = w.ended_at
-    ? new Date(w.ended_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    ? new Date(w.ended_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
     : '—';
   return (
     <View className="flex-row items-center bg-ink-100 px-4 py-3">
@@ -106,10 +107,10 @@ export default function MeScreen() {
   const myColour = user?.hex_colour || colors.player.saffron;
 
   // Streak display, corrected for staleness (the stored streak only resets on the NEXT capture):
-  // a streak is "alive" only if the last capture was today or yesterday (IST), else show 0.
-  const istDay = (ms: number) => Math.floor((ms + 5.5 * 3600 * 1000) / 86_400_000);
+  // a streak is "alive" only if the last capture was today or yesterday in the region timezone
+  // (same day boundary as SQL app_tz()), else show 0.
   const lastCapMs = user?.last_capture_at ? new Date(user.last_capture_at).getTime() : null;
-  const streakAlive = lastCapMs !== null && istDay(Date.now()) - istDay(lastCapMs) <= 1;
+  const streakAlive = lastCapMs !== null && regionDayIndex(Date.now()) - regionDayIndex(lastCapMs) <= 1;
   const streak = streakAlive ? user?.current_streak ?? 0 : 0;
 
   const [walks, setWalks] = useState<WalkRow[]>([]);
@@ -174,16 +175,16 @@ export default function MeScreen() {
 
         {/* Dashboard: round points · hexes held · rent/hr */}
         <View className="mt-4 flex-row gap-3">
-          <DashStat value={points.toLocaleString('en-IN')} label="Points" />
+          <DashStat value={points.toLocaleString('en-US')} label="Points" />
           <DashStat value={String(hexes)} label="Hexes" />
-          <DashStat value={`${rentPerHr.toLocaleString('en-IN')}/hr`} label="Rent" />
+          <DashStat value={`${rentPerHr.toLocaleString('en-US')}/hr`} label="Rent" />
         </View>
 
         {/* XP bar — tap through to the Levels ladder */}
         <Pressable className="mt-4" onPress={() => router.push('/levels' as Href)}>
           <View className="mb-1 flex-row justify-between">
             <Text className="text-label-sm uppercase text-ink-700">
-              {xp.atMax ? 'Max level — Mayor' : `${xp.toNext.toLocaleString('en-IN')} XP to ${levelName(level + 1)}`}
+              {xp.atMax ? 'Max level — Mayor' : `${xp.toNext.toLocaleString('en-US')} XP to ${levelName(level + 1)}`}
             </Text>
             <Text className="text-label-sm font-semibold text-saffron-700">Levels ›</Text>
           </View>
@@ -191,7 +192,7 @@ export default function MeScreen() {
             <View className="h-full rounded-full bg-saffron-600" style={{ width: `${Math.round(xp.pct * 100)}%` }} />
           </View>
           <Text className="mt-1 text-label-sm text-ink-600" style={{ fontVariant: ['tabular-nums'] }}>
-            {xp.atMax ? `${lp.toLocaleString('en-IN')} lifetime points` : `${xp.into.toLocaleString('en-IN')} / ${xp.span.toLocaleString('en-IN')} XP`}
+            {xp.atMax ? `${lp.toLocaleString('en-US')} lifetime points` : `${xp.into.toLocaleString('en-US')} / ${xp.span.toLocaleString('en-US')} XP`}
           </Text>
         </Pressable>
 

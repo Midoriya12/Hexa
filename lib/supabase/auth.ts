@@ -7,7 +7,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './client';
 import type { UserRow } from '@/types/database';
 
-/** Send the OTP. `phone` must be E.164, e.g. "+919999900001". */
+/** Send the OTP. `phone` must be E.164, e.g. "+15551234567" (see lib/config/region toE164). */
 export async function requestOtp(phone: string): Promise<void> {
   const { error } = await supabase.auth.signInWithOtp({ phone });
   if (error) throw error;

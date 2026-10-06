@@ -10,14 +10,14 @@ import * as Haptics from 'expo-haptics';
 
 import { BottomToast, Button } from '@/components/ui';
 import { requestOtp } from '@/lib/supabase/auth';
+import {
+  PHONE_INPUT_MAX_LENGTH,
+  formatNationalPhone,
+  isValidNationalPhone,
+  region,
+  toE164,
+} from '@/lib/config/region';
 import { colors } from '@/theme';
-
-const VALID_PHONE = /^[6-9]\d{9}$/;
-
-function formatNational(digits: string): string {
-  if (digits.length <= 5) return digits;
-  return `${digits.slice(0, 5)} ${digits.slice(5)}`;
-}
 
 export default function PhoneEntryScreen() {
   const router = useRouter();
@@ -26,23 +26,24 @@ export default function PhoneEntryScreen() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(false);
 
-  const valid = VALID_PHONE.test(digits);
+  const valid = isValidNationalPhone(digits);
 
   const onChange = (text: string) => {
-    setDigits(text.replace(/[^0-9]/g, '').slice(0, 10));
+    setDigits(text.replace(/[^0-9]/g, '').slice(0, region.phone.nationalLength));
     if (error) setError(null);
   };
 
   const onSend = async () => {
     if (!valid) {
-      setError('Please enter a valid Indian mobile number');
+      setError(region.phone.invalidHint);
       return;
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSending(true);
     try {
-      await requestOtp(`+91${digits}`);
-      router.push({ pathname: '/(auth)/otp', params: { phone: `+91${digits}` } });
+      const e164 = toE164(digits);
+      await requestOtp(e164);
+      router.push({ pathname: '/(auth)/otp', params: { phone: e164 } });
     } catch {
       setToast(true);
     } finally {
@@ -69,15 +70,15 @@ export default function PhoneEntryScreen() {
             <Text className="mb-2 text-label-md text-white/90">Your mobile number</Text>
             <View className="flex-row">
               <View className="h-[56px] w-20 flex-row items-center justify-center rounded-md bg-white/15">
-                <Text className="text-body-lg font-semibold text-white">🇮🇳 +91</Text>
+                <Text className="text-body-lg font-semibold text-white">{region.phone.flag} {region.phone.dialCode}</Text>
               </View>
               <TextInput
-                value={formatNational(digits)}
+                value={formatNationalPhone(digits)}
                 onChangeText={onChange}
                 placeholder="Enter mobile number"
                 placeholderTextColor="rgba(255,255,255,0.6)"
                 keyboardType="number-pad"
-                maxLength={11}
+                maxLength={PHONE_INPUT_MAX_LENGTH}
                 autoFocus
                 className={`ml-3 h-[56px] flex-1 rounded-md bg-white/15 px-4 text-body-lg font-semibold text-white ${
                   error ? 'border-2 border-ink-50' : ''

@@ -1,5 +1,5 @@
 // Hex grid + ownership state, shared across the Play and Start maps + the capture tracker. At
-// full-Bangalore scale (~85K cells) we never hold the whole grid: we WINDOW it.
+// full-city scale (tens of thousands of cells) we never hold the whole grid: we WINDOW it.
 //   - byId       — hexes currently loaded for the visible viewport / the walker's surroundings,
 //                  fetched via the hexes_in_bbox RPC (migration 009) and evicted by distance once
 //                  past CAP so memory + render cost stay bounded.

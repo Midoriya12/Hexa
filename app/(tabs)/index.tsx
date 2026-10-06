@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { IconBell, IconChevronDown, IconEye, IconStack, IconTarget } from '@/components/ui/Icon';
+import { region } from '@/lib/config/region';
 
 import { Avatar } from '@/components/ui';
 import { HexMap, type HexMapHandle } from '@/components/map/HexMap';
@@ -130,7 +131,7 @@ export default function PlayScreen() {
 
   const isClan = mode === 'Clan';
   const myName = user?.display_name || user?.username || 'You';
-  const myArea = user?.home_neighbourhood || 'Bengaluru';
+  const myArea = user?.home_neighbourhood || region.shortName;
   const myHexes = user?.current_held_hexes ?? 0;
   const clanPoints = clanMembers.reduce((s, m) => s + m.points, 0);
 
@@ -232,7 +233,7 @@ export default function PlayScreen() {
                     name={myClan.name}
                     sub={`${myClan.memberCount} / ${CLAN_MEMBER_CAP} members · tap to manage`}
                     metrics={[
-                      { value: clanPoints.toLocaleString('en-IN'), label: 'Points' },
+                      { value: clanPoints.toLocaleString('en-US'), label: 'Points' },
                       { value: `${myClan.memberCount}/${CLAN_MEMBER_CAP}`, label: 'Members' },
                     ]}
                   />
@@ -248,7 +249,7 @@ export default function PlayScreen() {
                 title="Solo"
                 name={myName}
                 sub={myArea}
-                metrics={[{ value: myHexes.toLocaleString('en-IN'), label: 'Hexes held' }]}
+                metrics={[{ value: myHexes.toLocaleString('en-US'), label: 'Hexes held' }]}
               />
             )}
           </View>
@@ -301,7 +302,7 @@ export default function PlayScreen() {
                       </View>
                       <View className="items-end">
                         <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">
-                          {m.points.toLocaleString('en-IN')}
+                          {m.points.toLocaleString('en-US')}
                         </Text>
                         <Text style={{ fontVariant: ['tabular-nums'] }} className="text-label-sm text-ink-600">
                           {m.sub}

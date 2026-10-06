@@ -113,7 +113,7 @@ export function HexInfo({ h3, onClose }: { h3: string | null; onClose: () => voi
                 />
               </View>
               <View className="mt-5 flex-row justify-around">
-                <Metric value={owner.points.toLocaleString('en-IN')} label="Points" />
+                <Metric value={owner.points.toLocaleString('en-US')} label="Points" />
                 <Metric value={heldFor(owner.capturedAt)} label="Held" />
               </View>
               <View className="mt-6">

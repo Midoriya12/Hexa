@@ -5,7 +5,7 @@
 //
 // The location field is region-driven (config/region.json via lib/config/region):
 //   • mode 'zip'  — free-text code entry (US ZIP), validated by the region's pattern.
-//   • mode 'list' — pick-from-list modal (e.g. Bangalore pincodes).
+//   • mode 'list' — pick-from-list modal (e.g. Indian pincodes).
 // The DB column is still `users.pincode` (a generic area code); no schema change.
 import { useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';

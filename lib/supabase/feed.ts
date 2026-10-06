@@ -2,6 +2,7 @@
 // Joins captures → public_users (capturer) + hexes (neighbourhood) client-side (all three are
 // authenticated-readable). No new table needed.
 import { supabase } from './client';
+import { region } from '@/lib/config/region';
 
 export interface FeedItem {
   id: number;
@@ -46,7 +47,7 @@ async function mapCaptures(caps: CaptureRow[]): Promise<FeedItem[]> {
         name: u?.display_name || u?.username || 'Player',
         level: u?.level ?? 1,
         colour: u?.hex_colour ?? null,
-        neighbourhood: hMap.get(c.h3_index) || 'Bengaluru',
+        neighbourhood: hMap.get(c.h3_index) || region.shortName,
         ip: c.ip_awarded,
         capturedAt: c.captured_at,
         stolen: c.capture_type === 'steal',

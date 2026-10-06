@@ -9,16 +9,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { OtpInput, Spinner } from '@/components/ui';
 import { fetchOwnUser, isProfileComplete, requestOtp, verifyOtp } from '@/lib/supabase/auth';
 import { useUserStore } from '@/stores/userStore';
+import { formatE164Display } from '@/lib/config/region';
 import { colors } from '@/theme';
 
 const RESEND_SECONDS = 30;
 const MAX_RESENDS = 3;
 
-// "+919876543210" -> "+91 98765 43210"
-function formatPhone(e164: string): string {
-  const national = e164.replace('+91', '');
-  return `+91 ${national.slice(0, 5)} ${national.slice(5)}`;
-}
+// E.164 -> display with the region dial code, e.g. "+15551234567" -> "+1 (555) 123-4567".
+const formatPhone = formatE164Display;
 
 export default function OtpScreen() {
   const router = useRouter();

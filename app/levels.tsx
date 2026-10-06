@@ -40,8 +40,8 @@ export default function LevelsScreen() {
           <Text className="text-label-sm uppercase tracking-wide text-ink-600">You are</Text>
           <Text className="text-display-sm font-extrabold text-saffron-600">{levelName(level)}</Text>
           <Text className="mt-1 text-body-sm text-ink-700" style={{ fontVariant: ['tabular-nums'] }}>
-            {lp.toLocaleString('en-IN')} lifetime points
-            {xp.atMax ? ' · max rank' : ` · ${xp.toNext.toLocaleString('en-IN')} to ${levelName(level + 1)}`}
+            {lp.toLocaleString('en-US')} lifetime points
+            {xp.atMax ? ' · max rank' : ` · ${xp.toNext.toLocaleString('en-US')} to ${levelName(level + 1)}`}
           </Text>
           {!xp.atMax ? (
             <View className="mt-3 h-2 overflow-hidden rounded-full bg-ink-300">
@@ -72,7 +72,7 @@ export default function LevelsScreen() {
                 <View className="ml-3 flex-1">
                   <Text className={`text-heading-sm ${reached ? 'text-ink-900' : 'text-ink-600'}`}>{name}</Text>
                   <Text className="text-label-sm text-ink-600" style={{ fontVariant: ['tabular-nums'] }}>
-                    {LEVEL_THRESHOLDS[i] === 0 ? 'Starting rank' : `${LEVEL_THRESHOLDS[i].toLocaleString('en-IN')} lifetime points`}
+                    {LEVEL_THRESHOLDS[i] === 0 ? 'Starting rank' : `${LEVEL_THRESHOLDS[i].toLocaleString('en-US')} lifetime points`}
                   </Text>
                 </View>
                 {here ? (

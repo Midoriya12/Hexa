@@ -1,5 +1,5 @@
 // Hex grid reads. The playable grid is static (scripts/generate-hexes.mjs); ownership is dynamic
-// (hex_ownership, written only by the capture_hex RPC). At full-Bangalore scale (~85K cells) we do
+// (hex_ownership, written only by the capture_hex RPC). At full-city scale (tens of thousands of cells) we do
 // NOT load the whole grid — we fetch only the hexes inside the current map VIEWPORT via the
 // hexes_in_bbox RPC (migration 009), which tags each hex's owner relative to the caller in ONE
 // round-trip — PLUS a bounds-independent fetch of the caller's OWN hexes so your territory renders

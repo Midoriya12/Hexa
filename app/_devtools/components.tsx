@@ -101,7 +101,7 @@ export default function ComponentsGallery() {
 
           <Section title="Input">
             <Input label="Username" placeholder="rohit_walks_bangalore" />
-            <Input label="Pincode" placeholder="560102" error="Enter a Bangalore pincode" />
+            <Input label="ZIP code" placeholder="10012" error="Enter a 5-digit US ZIP code" />
             <Text className="text-body-sm text-ink-700">OTP</Text>
             <OtpInput value={otp} onChangeText={setOtp} />
           </Section>
@@ -141,7 +141,7 @@ export default function ComponentsGallery() {
           </Section>
 
           <Section title="SubToggle">
-            <SubToggle options={['Pincode', 'Bangalore', 'Friends']} value={toggle} onChange={setToggle} />
+            <SubToggle options={['ZIP', 'City', 'Friends']} value={toggle} onChange={setToggle} />
           </Section>
 
           <Section title="HoldToConfirm">
@@ -185,7 +185,7 @@ export default function ComponentsGallery() {
 
         <TopBanner
           visible={topBanner}
-          message="Priya stole 3 of your hexes in HSR."
+          message="Priya stole 3 of your hexes in SoHo."
           avatarName="Priya"
           actionLabel="Get back"
           onAction={() => setTopBanner(false)}

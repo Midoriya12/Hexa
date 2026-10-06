@@ -144,8 +144,8 @@ export default function ProfileScreen() {
             </View>
 
             <View className="mt-6 flex-row gap-3">
-              <Stat value={profile.points.toLocaleString('en-IN')} label="Points" />
-              <Stat value={profile.captures.toLocaleString('en-IN')} label="Hexes captured" />
+              <Stat value={profile.points.toLocaleString('en-US')} label="Points" />
+              <Stat value={profile.captures.toLocaleString('en-US')} label="Hexes captured" />
             </View>
           </>
         )}

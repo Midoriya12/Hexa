@@ -113,7 +113,7 @@ export default function NotificationsScreen() {
                   <View className="ml-3 flex-1">
                     <Text className="text-heading-sm text-ink-900">{r.user.name}</Text>
                     <Text className="text-body-sm text-ink-700">
-                      wants to join · {r.user.points.toLocaleString('en-IN')} pts
+                      wants to join · {r.user.points.toLocaleString('en-US')} pts
                     </Text>
                     {r.message ? (
                       <Text className="mt-0.5 text-body-sm italic text-ink-700" numberOfLines={2}>

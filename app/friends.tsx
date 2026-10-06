@@ -154,7 +154,7 @@ export default function FriendsScreen() {
                 </View>
               </View>
               <Text style={{ fontVariant: ['tabular-nums'] }} className="text-body-md font-semibold text-ink-900">
-                {f.points.toLocaleString('en-IN')}
+                {f.points.toLocaleString('en-US')}
               </Text>
             </Pressable>
           ))

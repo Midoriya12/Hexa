@@ -66,7 +66,7 @@ export const CLAN_COST = 1500;
 /** Map an RPC error code to a friendly message for toasts. */
 export function clanError(e: unknown): string {
   const m = (e as { message?: string })?.message ?? '';
-  if (m.includes('insufficient_points')) return `You need ${CLAN_COST.toLocaleString('en-IN')} points to found a clan.`;
+  if (m.includes('insufficient_points')) return `You need ${CLAN_COST.toLocaleString('en-US')} points to found a clan.`;
   if (m.includes('clan_full')) return 'That clan is full (100 members).';
   if (m.includes('already_in_clan')) return "You're already in a clan.";
   if (m.includes('below_min_points')) return "You don't meet the clan's points requirement.";
