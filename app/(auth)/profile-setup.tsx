@@ -1,7 +1,12 @@
 // Profile Setup — faithful to INTVL 28 "Profile — Edit" (dark, header + Done,
 // centered avatar + pencil, labelled fields, "Terra colour" swatch row), saffron.
 // Single screen (replaces the 3-step wizard) per the INTVL blueprint. Keeps username
-// uniqueness check + pincode picker + writes the users row.
+// uniqueness check + home-location entry + writes the users row.
+//
+// The location field is region-driven (config/region.json via lib/config/region):
+//   • mode 'zip'  — free-text code entry (US ZIP), validated by the region's pattern.
+//   • mode 'list' — pick-from-list modal (e.g. Bangalore pincodes).
+// The DB column is still `users.pincode` (a generic area code); no schema change.
 import { useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +16,13 @@ import { useRouter } from 'expo-router';
 import { Avatar, Button, SubToggle } from '@/components/ui';
 import { supabase } from '@/lib/supabase/client';
 import { useUserStore } from '@/stores/userStore';
-import { BANGALORE_PINCODES, NEIGHBOURHOODS, pincodeLabel } from '@/lib/utils/bangalore';
+import {
+  region,
+  isValidLocationCode,
+  locationLabel,
+  neighbourhoodFor,
+  LOCATION_OPTIONS,
+} from '@/lib/config/region';
 import { colors } from '@/theme';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]+$/;
@@ -52,7 +63,7 @@ export default function ProfileSetupScreen() {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
-  const [pincode, setPincode] = useState('');
+  const [locationCode, setLocationCode] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [hexColour, setHexColour] = useState<string>(colors.player.saffron);
   const [playDepth, setPlayDepth] = useState<string>('Competing');
@@ -73,7 +84,8 @@ export default function ProfileSetupScreen() {
     }
   };
 
-  const valid = usernameStatus === 'available' && displayName.trim().length > 0 && pincode.length > 0;
+  const locationValid = isValidLocationCode(locationCode);
+  const valid = usernameStatus === 'available' && displayName.trim().length > 0 && locationValid;
 
   const submit = async () => {
     setSubmitting(true);
@@ -88,8 +100,8 @@ export default function ProfileSetupScreen() {
           phone: `+${auth.user.phone}`,
           username: username.trim(),
           display_name: displayName.trim(),
-          pincode,
-          home_neighbourhood: NEIGHBOURHOODS[pincode] ?? null,
+          pincode: locationCode.trim(),
+          home_neighbourhood: neighbourhoodFor(locationCode.trim()),
           hex_colour: hexColour,
           language_pref: 'en',
           flags: { play_depth: PLAY_KEYS[playDepth] },
@@ -162,16 +174,41 @@ export default function ProfileSetupScreen() {
           />
         </Field>
 
-        <Field label="Home pincode">
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setPickerOpen(true)}
-            className="h-[52px] justify-center rounded-md border border-ink-400 bg-ink-200 px-4"
-          >
-            <Text className={`text-body-lg ${pincode ? 'text-ink-900' : 'text-ink-600'}`}>
-              {pincode ? pincodeLabel(pincode) : 'Select your pincode'}
-            </Text>
-          </Pressable>
+        <Field label={region.location.label}>
+          {region.location.mode === 'list' ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setPickerOpen(true)}
+              className="h-[52px] justify-center rounded-md border border-ink-400 bg-ink-200 px-4"
+            >
+              <Text className={`text-body-lg ${locationCode ? 'text-ink-900' : 'text-ink-600'}`}>
+                {locationCode ? locationLabel(locationCode) : `Select your ${region.location.term}`}
+              </Text>
+            </Pressable>
+          ) : (
+            <>
+              <View
+                className={`flex-row items-center rounded-md border bg-ink-200 px-4 ${
+                  locationCode.length > 0 && !locationValid ? 'border-danger' : 'border-ink-400'
+                }`}
+              >
+                <TextInput
+                  value={locationCode}
+                  onChangeText={(t) => setLocationCode(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                  placeholder={region.location.placeholder}
+                  placeholderTextColor={colors.ink[600]}
+                  keyboardType="number-pad"
+                  className="h-[52px] flex-1 text-body-lg text-ink-900"
+                />
+                {locationValid ? <Text className="text-body-md text-success">✓</Text> : null}
+              </View>
+              {locationCode.length > 0 && !locationValid ? (
+                <Text className="mt-1 text-body-sm text-danger">{region.location.invalidHint}</Text>
+              ) : locationValid && neighbourhoodFor(locationCode) ? (
+                <Text className="mt-1 text-body-sm text-ink-600">{locationLabel(locationCode)}</Text>
+              ) : null}
+            </>
+          )}
         </Field>
 
         {/* Hex colour swatches (INTVL "Terra colour") */}
@@ -206,33 +243,35 @@ export default function ProfileSetupScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
-        <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
-          <View className="h-14 flex-row items-center justify-between px-4">
-            <Text className="text-heading-md text-ink-900">Select pincode</Text>
-            <Text className="text-body-md text-saffron-600" onPress={() => setPickerOpen(false)}>
-              Close
-            </Text>
-          </View>
-          <FlatList
-            data={BANGALORE_PINCODES}
-            keyExtractor={(p) => p}
-            initialNumToRender={20}
-            renderItem={({ item }) => (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setPincode(item);
-                  setPickerOpen(false);
-                }}
-                className="border-b border-ink-300 px-4 py-4"
-              >
-                <Text className="text-body-lg text-ink-900">{pincodeLabel(item)}</Text>
-              </Pressable>
-            )}
-          />
-        </SafeAreaView>
-      </Modal>
+      {region.location.mode === 'list' ? (
+        <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+          <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-ink-50">
+            <View className="h-14 flex-row items-center justify-between px-4">
+              <Text className="text-heading-md text-ink-900">Select {region.location.term}</Text>
+              <Text className="text-body-md text-saffron-600" onPress={() => setPickerOpen(false)}>
+                Close
+              </Text>
+            </View>
+            <FlatList
+              data={LOCATION_OPTIONS}
+              keyExtractor={(p) => p}
+              initialNumToRender={20}
+              renderItem={({ item }) => (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setLocationCode(item);
+                    setPickerOpen(false);
+                  }}
+                  className="border-b border-ink-300 px-4 py-4"
+                >
+                  <Text className="text-body-lg text-ink-900">{locationLabel(item)}</Text>
+                </Pressable>
+              )}
+            />
+          </SafeAreaView>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }

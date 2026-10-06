@@ -36,6 +36,7 @@ import Mapbox, {
 
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useHexStore } from '@/stores/hexStore';
+import { REGION_CENTER } from '@/lib/config/region';
 
 // Public token (pk.*) — fine to bundle. Telemetry off (patch #19 / DPDPA 2023).
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? null);
@@ -44,8 +45,8 @@ void Mapbox.setTelemetryEnabled(false);
 // Mapbox Standard — the modern colourful 3D globe. `lightPreset` drives day/night lighting.
 const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 
-// HSR Layout centroid [lng, lat] — the launch area.
-const HSR_CENTER: [number, number] = [77.6446, 12.9116];
+// Launch-area centroid [lng, lat], from config/region.json — where the map opens and the
+// "find nearest hex" / follow fallbacks fly to when the user's live location isn't available.
 
 // Zoomed-right-out "whole globe" level — the Start map opens here, then flies down to you.
 const GLOBE_ZOOM = 2.2;
@@ -135,7 +136,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
   // "Find nearest hex": fly to the closest UNOWNED hex to the user (or launch-area centre if
   // location is unavailable). No turn-by-turn — just a camera move (spec line 1480).
   const flyToNearestHex = useCallback(async () => {
-    let from: [number, number] = HSR_CENTER;
+    let from: [number, number] = REGION_CENTER;
     try {
       let granted = (await Location.getForegroundPermissionsAsync()).granted;
       if (!granted) granted = (await Location.requestForegroundPermissionsAsync()).granted;
@@ -198,7 +199,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
     if (!followUser || !isFocused) return;
     let alive = true;
     (async () => {
-      let target: [number, number] = HSR_CENTER;
+      let target: [number, number] = REGION_CENTER;
       try {
         const granted =
           (await Location.getForegroundPermissionsAsync()).granted ||
@@ -253,7 +254,7 @@ export const HexMap = forwardRef<HexMapHandle, HexMapProps>(function HexMap(
           ref={cameraRef}
           // Start (followUser) opens on the globe and flies down to you (see intro effect below);
           // Play opens at its given zoom.
-          defaultSettings={{ centerCoordinate: HSR_CENTER, zoomLevel: followUser ? GLOBE_ZOOM : zoomLevel }}
+          defaultSettings={{ centerCoordinate: REGION_CENTER, zoomLevel: followUser ? GLOBE_ZOOM : zoomLevel }}
           minZoomLevel={0.5}
           maxZoomLevel={19}
         />

@@ -1,7 +1,12 @@
 // generate-hexes.mjs — Hexa hex-grid seeder (run server-side; service-role key bypasses RLS).
 //
-//   node scripts/generate-hexes.mjs                 # full Bangalore, public-place anchored
+//   node scripts/generate-hexes.mjs                 # full active region, public-place anchored
 //   node scripts/generate-hexes.mjs --scope=swath   # central swath only (smaller) for testing
+//
+// The region (bounding box, neighbourhood labels, safety floor) comes from config/region.json —
+// the SAME file the app reads for its map centre and signup location field. Re-target a city by
+// editing that JSON and re-running this script; no edits here. The OSM/Overpass anchor + no-go
+// queries below are geography-agnostic, so they work for any city out of the box.
 //
 // PLACEMENT MODEL (Sai, 2026-06-04): hexes are NOT a wall-to-wall tessellation. They sit only at
 // REACHABLE PUBLIC PLACES pulled from OpenStreetMap — parks, gardens, playgrounds, sports grounds,
@@ -23,6 +28,10 @@ import { readFileSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { latLngToCell, cellToBoundary, cellToLatLng, getHexagonAreaAvg, UNITS } from 'h3-js';
 import { booleanPointInPolygon, bbox as turfBbox, polygon as turfPolygon } from '@turf/turf';
+
+// Region config — shared with the app (config/region.json). Resolved relative to THIS file so the
+// script works regardless of cwd.
+const REGION = JSON.parse(readFileSync(new URL('../config/region.json', import.meta.url), 'utf8'));
 
 function loadEnv(path) {
   try {
@@ -46,61 +55,11 @@ const SCOPE = (args.find((a) => a.startsWith('--scope=')) ?? '--scope=city').spl
 const TILE_DEG = 0.05;
 const CACHE_DIR = 'scripts/.cache/overpass';
 
-const BBOXES = {
-  city: { west: 77.46, south: 12.83, east: 77.78, north: 13.14 },
-  swath: { west: 77.56, south: 12.86, east: 77.72, north: 13.02 },
-};
-const BBOX = BBOXES[SCOPE] ?? BBOXES.city;
+const BBOX = REGION.seed[SCOPE === 'swath' ? 'swath' : 'bbox'] ?? REGION.seed.bbox;
 
-// City-wide locality labels for the feed ("captured a hex in {neighbourhood}"). [lat,lng].
-const AREAS = [
-  { name: 'HSR Layout', pincode: '560102', lat: 12.9116, lng: 77.6446 },
-  { name: 'Koramangala', pincode: '560034', lat: 12.9352, lng: 77.6245 },
-  { name: 'Indiranagar', pincode: '560038', lat: 12.9719, lng: 77.6412 },
-  { name: 'BTM Layout', pincode: '560076', lat: 12.9166, lng: 77.6101 },
-  { name: 'Jayanagar', pincode: '560041', lat: 12.9250, lng: 77.5938 },
-  { name: 'JP Nagar', pincode: '560078', lat: 12.9063, lng: 77.5857 },
-  { name: 'Banashankari', pincode: '560070', lat: 12.9255, lng: 77.5468 },
-  { name: 'Basavanagudi', pincode: '560004', lat: 12.9417, lng: 77.5730 },
-  { name: 'Bellandur', pincode: '560103', lat: 12.9304, lng: 77.6784 },
-  { name: 'Marathahalli', pincode: '560037', lat: 12.9569, lng: 77.7011 },
-  { name: 'Whitefield', pincode: '560066', lat: 12.9698, lng: 77.7500 },
-  { name: 'Sarjapur Road', pincode: '560035', lat: 12.9009, lng: 77.6974 },
-  { name: 'Electronic City', pincode: '560100', lat: 12.8452, lng: 77.6602 },
-  { name: 'Bommanahalli', pincode: '560068', lat: 12.8997, lng: 77.6186 },
-  { name: 'Bannerghatta Road', pincode: '560076', lat: 12.8918, lng: 77.5972 },
-  { name: 'Rajarajeshwari Nagar', pincode: '560098', lat: 12.9279, lng: 77.5191 },
-  { name: 'Kengeri', pincode: '560060', lat: 12.9080, lng: 77.4828 },
-  { name: 'Vijayanagar', pincode: '560040', lat: 12.9719, lng: 77.5305 },
-  { name: 'Rajajinagar', pincode: '560010', lat: 12.9914, lng: 77.5526 },
-  { name: 'Malleshwaram', pincode: '560003', lat: 13.0035, lng: 77.5709 },
-  { name: 'Yeshwanthpur', pincode: '560022', lat: 13.0284, lng: 77.5400 },
-  { name: 'Peenya', pincode: '560058', lat: 13.0287, lng: 77.5200 },
-  { name: 'Mathikere', pincode: '560054', lat: 13.0330, lng: 77.5610 },
-  { name: 'Hebbal', pincode: '560024', lat: 13.0358, lng: 77.5970 },
-  { name: 'RT Nagar', pincode: '560032', lat: 13.0238, lng: 77.5938 },
-  { name: 'Yelahanka', pincode: '560064', lat: 13.1007, lng: 77.5963 },
-  { name: 'Jakkur', pincode: '560064', lat: 13.0760, lng: 77.6060 },
-  { name: 'Hennur', pincode: '560043', lat: 13.0280, lng: 77.6410 },
-  { name: 'Banaswadi', pincode: '560043', lat: 13.0140, lng: 77.6510 },
-  { name: 'Kalyan Nagar', pincode: '560043', lat: 13.0240, lng: 77.6390 },
-  { name: 'Kammanahalli', pincode: '560084', lat: 13.0140, lng: 77.6370 },
-  { name: 'Ramamurthy Nagar', pincode: '560016', lat: 13.0150, lng: 77.6780 },
-  { name: 'KR Puram', pincode: '560036', lat: 13.0070, lng: 77.6960 },
-  { name: 'Mahadevapura', pincode: '560048', lat: 12.9920, lng: 77.6870 },
-  { name: 'CV Raman Nagar', pincode: '560093', lat: 12.9870, lng: 77.6630 },
-  { name: 'Frazer Town', pincode: '560005', lat: 12.9990, lng: 77.6150 },
-  { name: 'Shivajinagar', pincode: '560001', lat: 12.9850, lng: 77.6050 },
-  { name: 'MG Road', pincode: '560001', lat: 12.9750, lng: 77.6060 },
-  { name: 'Domlur', pincode: '560071', lat: 12.9610, lng: 77.6380 },
-  { name: 'Ulsoor', pincode: '560008', lat: 12.9810, lng: 77.6260 },
-  { name: 'Girinagar', pincode: '560085', lat: 12.9420, lng: 77.5430 },
-  { name: 'Uttarahalli', pincode: '560061', lat: 12.9070, lng: 77.5460 },
-  { name: 'Hulimavu', pincode: '560076', lat: 12.8780, lng: 77.6020 },
-  { name: 'Begur', pincode: '560068', lat: 12.8730, lng: 77.6320 },
-  { name: 'Hoodi', pincode: '560048', lat: 12.9920, lng: 77.7160 },
-  { name: 'Kadugodi', pincode: '560067', lat: 12.9930, lng: 77.7600 },
-];
+// Region locality labels for the feed ("captured a hex in {neighbourhood}"). [lat,lng] + code
+// (stored in the DB `pincode` column — a generic area code, ZIP for the US). From config/region.json.
+const AREAS = REGION.areas;
 
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -300,7 +259,7 @@ async function main() {
     console.error('Missing SUPABASE_URL / EXPO_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
     process.exit(1);
   }
-  console.log(`Hexa seeder · res ${RES} (~${Math.round(getHexagonAreaAvg(RES, UNITS.m2))} m²/cell) · public-place anchored, ${MIN_SPACING_M}m spacing`);
+  console.log(`Hexa seeder · ${REGION.name} · res ${RES} (~${Math.round(getHexagonAreaAvg(RES, UNITS.m2))} m²/cell) · public-place anchored, ${MIN_SPACING_M}m spacing`);
   console.log(`Scope: ${SCOPE}  bbox: ${JSON.stringify(BBOX)}`);
 
   // 1) Sweep tiles → collect POI points + no-go polygons.
@@ -379,7 +338,7 @@ async function main() {
       center_lng: c.lng,
       capture_lat: c.lat,
       capture_lng: c.lng,
-      pincode: area.pincode,
+      pincode: area.code,
       neighbourhood: area.name,
       boundary: { type: 'Polygon', coordinates: [boundary] },
       is_active: true,
@@ -389,7 +348,7 @@ async function main() {
   // SAFEGUARD: an empty/near-empty result almost always means Overpass was unreachable, NOT that
   // the city has no public places. Abort BEFORE any upsert/soft-disable so a network failure can
   // never wipe the existing grid. (Floor scales with scope.)
-  const FLOOR = SCOPE === 'swath' ? 40 : 200;
+  const FLOOR = SCOPE === 'swath' ? REGION.seed.swathFloor : REGION.seed.floor;
   if (kept.length < FLOOR) {
     console.error(
       `Only ${kept.length} hexes produced (< ${FLOOR} floor) — Overpass likely failed. ` +

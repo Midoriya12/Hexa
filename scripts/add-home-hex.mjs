@@ -1,10 +1,13 @@
-// add-home-hex.mjs — seed a small patch of hexes at a location (default: SNN Raj Etternia,
-// Haralur), bypassing the OSM exclude filter, so Sai can test capture from home.
-//   node scripts/add-home-hex.mjs                 # geocode SNN Raj Etternia
-//   node scripts/add-home-hex.mjs 12.9015 77.6505 # explicit lat lng
+// add-home-hex.mjs — seed a small patch of hexes at a location (default: the active region's
+// testHex from config/region.json), bypassing the OSM exclude filter, so you can test capture
+// from a known spot.
+//   node scripts/add-home-hex.mjs                 # geocode the region testHex
+//   node scripts/add-home-hex.mjs 40.7308 -73.997 # explicit lat lng
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { latLngToCell, cellToLatLng, cellToBoundary, gridDisk } from 'h3-js';
+
+const REGION = JSON.parse(readFileSync(new URL('../config/region.json', import.meta.url), 'utf8'));
 
 for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
   const m = line.match(/^\s*([\w.]+)\s*=\s*(.*?)\s*$/);
@@ -27,12 +30,14 @@ async function main() {
     lng = parseFloat(process.argv[3]);
     label = 'explicit coords';
   } else {
-    const g = await geocode('SNN Raj Etternia, Haralur, Bengaluru');
-    if (!g) {
-      console.error('Geocode failed — pass coords: node scripts/add-home-hex.mjs <lat> <lng>');
-      process.exit(1);
+    const g = await geocode(REGION.testHex.query);
+    if (g) {
+      ({ lat, lng, label } = g);
+    } else {
+      // Geocode down? Fall back to the region's testHex coords so the test seed still runs.
+      ({ lat, lng } = REGION.testHex);
+      label = `${REGION.testHex.query} (config fallback)`;
     }
-    ({ lat, lng, label } = g);
   }
   console.log(`Seeding hexes around: ${lat}, ${lng}  (${label})`);
 
@@ -47,8 +52,8 @@ async function main() {
       center_lng: clng,
       capture_lat: clat,
       capture_lng: clng,
-      pincode: '560102',
-      neighbourhood: 'Haralur',
+      pincode: REGION.testHex.code,
+      neighbourhood: REGION.testHex.neighbourhood,
       boundary: { type: 'Polygon', coordinates: [boundary] },
       is_active: true,
     };

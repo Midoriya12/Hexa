@@ -7,7 +7,11 @@ import { IconFlag, IconGift, IconHexagons } from '@/components/ui/Icon';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui';
+import { region } from '@/lib/config/region';
 import { colors } from '@/theme';
+
+// Up to three sample neighbourhoods for the "coming soon" copy, from the active region.
+const SAMPLE_AREAS = region.areas.slice(0, 3).map((a) => a.name).join(', ');
 
 interface Page {
   key: string;
@@ -20,19 +24,19 @@ const PAGES: Page[] = [
   {
     key: 'game',
     heading: 'Walk the city.\nCapture it.',
-    body: 'Bangalore is split into hex tiles. Stand on one for 20 seconds — it’s yours.',
+    body: `${region.name} is split into hex tiles. Stand on one for 20 seconds — it’s yours.`,
     Icon: IconHexagons,
   },
   {
     key: 'rivalry',
     heading: 'Defend\nyour turf.',
-    body: 'Friends and strangers steal your hexes. Build streaks, climb your pincode leaderboard, earn medals.',
+    body: `Friends and strangers steal your hexes. Build streaks, climb your ${region.location.term} leaderboard, earn medals.`,
     Icon: IconFlag,
   },
   {
     key: 'reward',
     heading: 'Walk for\nreal things.',
-    body: 'Brand-sponsored vouchers from cafés you actually walk past. Coming to HSR, Indiranagar, Koramangala.',
+    body: `Brand-sponsored vouchers from cafés you actually walk past. Coming to ${SAMPLE_AREAS}.`,
     Icon: IconGift,
   },
 ];

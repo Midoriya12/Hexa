@@ -1,0 +1,50 @@
+{
+  "id": "nyc",
+  "name": "New York City",
+  "shortName": "NYC",
+  "country": "US",
+  "center": { "lat": 40.7549, "lng": -73.984 },
+  "seed": {
+    "bbox": { "west": -74.02, "south": 40.68, "east": -73.91, "north": 40.84 },
+    "swath": { "west": -73.99, "south": 40.72, "east": -73.95, "north": 40.78 },
+    "floor": 200,
+    "swathFloor": 40
+  },
+  "location": {
+    "mode": "zip",
+    "term": "ZIP code",
+    "label": "Home ZIP code",
+    "placeholder": "10001",
+    "pattern": "^\\d{5}$",
+    "invalidHint": "Enter a 5-digit US ZIP code"
+  },
+  "testHex": {
+    "query": "Washington Square Park, New York",
+    "lat": 40.7308,
+    "lng": -73.9973,
+    "code": "10012",
+    "neighbourhood": "Greenwich Village"
+  },
+  "areas": [
+    { "name": "Financial District", "code": "10004", "lat": 40.7075, "lng": -74.0113 },
+    { "name": "Tribeca", "code": "10013", "lat": 40.7195, "lng": -74.0089 },
+    { "name": "SoHo", "code": "10012", "lat": 40.7233, "lng": -74.003 },
+    { "name": "West Village", "code": "10014", "lat": 40.7358, "lng": -74.0036 },
+    { "name": "East Village", "code": "10009", "lat": 40.7265, "lng": -73.9815 },
+    { "name": "Lower East Side", "code": "10002", "lat": 40.715, "lng": -73.9843 },
+    { "name": "Chelsea", "code": "10011", "lat": 40.7465, "lng": -74.0014 },
+    { "name": "Midtown", "code": "10019", "lat": 40.7616, "lng": -73.9776 },
+    { "name": "Murray Hill", "code": "10016", "lat": 40.7478, "lng": -73.9782 },
+    { "name": "Upper West Side", "code": "10024", "lat": 40.787, "lng": -73.9754 },
+    { "name": "Upper East Side", "code": "10021", "lat": 40.769, "lng": -73.959 },
+    { "name": "Harlem", "code": "10027", "lat": 40.8116, "lng": -73.9465 },
+    { "name": "Washington Heights", "code": "10032", "lat": 40.84, "lng": -73.943 },
+    { "name": "Williamsburg", "code": "11211", "lat": 40.7081, "lng": -73.9571 },
+    { "name": "Greenpoint", "code": "11222", "lat": 40.7304, "lng": -73.954 },
+    { "name": "DUMBO", "code": "11201", "lat": 40.7033, "lng": -73.9903 },
+    { "name": "Downtown Brooklyn", "code": "11217", "lat": 40.688, "lng": -73.98 },
+    { "name": "Bushwick", "code": "11206", "lat": 40.7, "lng": -73.935 },
+    { "name": "Long Island City", "code": "11101", "lat": 40.744, "lng": -73.949 },
+    { "name": "Astoria", "code": "11102", "lat": 40.772, "lng": -73.925 }
+  ]
+}

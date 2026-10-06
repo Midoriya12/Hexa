@@ -9,6 +9,7 @@ import { IconBell, IconChevronRight, IconTrophy } from '@/components/ui/Icon';
 import { Avatar } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { fetchFeed, fetchFollowingFeed, type FeedItem } from '@/lib/supabase/feed';
+import { region } from '@/lib/config/region';
 import { colors } from '@/theme';
 
 const TABS = ['Explore', 'Friends'] as const;
@@ -94,7 +95,7 @@ export default function FeedScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 }}>
         <Pressable className="mb-6 flex-row items-center rounded-md bg-ink-200 p-4">
           <IconTrophy size={24} color={colors.saffron[600]} />
-          <Text className="ml-3 flex-1 text-body-lg text-ink-900">Bangalore territory leaderboards</Text>
+          <Text className="ml-3 flex-1 text-body-lg text-ink-900">{region.name} territory leaderboards</Text>
           <IconChevronRight size={20} color={colors.ink[600]} />
         </Pressable>
 
