@@ -29,6 +29,8 @@ export type CaptureError =
   | 'too_fast' // Phase 8: impossible speed between captures (>350 km/h) — rejected
   | 'banned' // Phase 8: temporarily suspended (banned_until in the future)
   | 'banned_permanently' // Phase 8: permanent ban
+  | 'too_soon' // 019: < 45 s since this user's last capture (server pacing)
+  | 'rate_limited' // 019: > 40 captures in the last rolling hour
   | 'unknown';
 
 // Matched by substring against the RAISEd message, so ORDER matters: 'banned_permanently' MUST come
@@ -43,6 +45,8 @@ const KNOWN_ERRORS: CaptureError[] = [
   'fresh_paint',
   'protected',
   'too_fast',
+  'too_soon',
+  'rate_limited',
   'banned_permanently',
   'banned',
   'cooldown',

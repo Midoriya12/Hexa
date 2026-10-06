@@ -346,7 +346,9 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
             res.error === 'block_cooldown' ||
             res.error === 'fresh_paint' ||
             res.error === 'protected' ||
-            res.error === 'too_fast';
+            res.error === 'too_fast' ||
+            res.error === 'too_soon' ||
+            res.error === 'rate_limited';
           dwellStartRef.current = noRetry ? null : Date.now();
           const message =
             res.error === 'outside_hex'
@@ -361,7 +363,11 @@ export function useHexTracker(active: boolean, sessionKey: number): TrackState {
                       ? 'Moving too fast to capture — slow down and try on foot.'
                       : res.error === 'cooldown'
                         ? 'Just captured — head to another hex.'
-                        : 'Capture failed — trying again.';
+                        : res.error === 'too_soon'
+                          ? 'Too quick — give it a moment before the next hex.'
+                          : res.error === 'rate_limited'
+                            ? 'Capture limit reached for this hour — take a breather.'
+                            : 'Capture failed — trying again.';
           setState((s) => ({ ...s, status: 'error', dwellProgress: 0, message }));
         }
         capturingRef.current = false;
